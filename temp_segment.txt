@@ -1,0 +1,27 @@
+    # PART 2: Video
+    video_path, video_meta = router.generate_teaser_video(video_prompt, state=state)
+    def _video_summary(meta: Dict[str, Any]) -> str:
+        file_info = (meta or {}).get("file", {})
+        logs = (meta or {}).get("logs", {})
+        status = (meta or {}).get("status")
+        return (
+            f"[Video] status={status} saved={file_info.get('exists', False)} path={file_info.get('path')} "
+            f"size={file_info.get('size', 0)} model={logs.get('model')}"
+        )
+    print(_video_summary(video_meta))
+
+    # PART 3: Styled PDF Guide (use real names, destination, dates)
+    events = _read_style_events_from_state(state)
+    pdf_out = os.path.join("assets", "style_guides", "style_guide.pdf")
+
+    couple_names = f"{getattr(profile, 'bride_name', '')} & {getattr(profile, 'groom_name', '')}".strip()
+    title = f"{couple_names} — Style Guide"
+    dest = getattr(profile, "destination", ""); dates = ", ".join(getattr(profile, "wedding_dates", []) or [])
+    subtitle = f"{dest} — {dates}".strip(" —") or None
+
+    pdf_info = build_style_guide_pdf(pdf_out, events, title=title, subtitle=subtitle)
+    print("style_guide_pdf:", json.dumps(pdf_info))
+
+
+if __name__ == "__main__":
+    main()
