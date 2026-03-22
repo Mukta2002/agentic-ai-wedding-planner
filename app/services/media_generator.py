@@ -19,6 +19,9 @@ def _file_info(path: str) -> Dict[str, Any]:
     }
 
 
+from app.config import get_gemini_api_key
+
+
 class MediaGenerator:
     def __init__(self, api_key: Optional[str] = None) -> None:
         # Prefer the new google-genai client. Avoid depending on google-generativeai
@@ -28,13 +31,8 @@ class MediaGenerator:
         self._sdk_used = None  # "google-genai" or "google-generativeai"
         self._import_notes: Dict[str, Any] = {}
 
-        # API key precedence: GEMINI_API_KEY (new) then GOOGLE_API_KEY
-        self._api_key = (
-            api_key
-            or os.environ.get("GEMINI_API_KEY")
-            or os.environ.get("GOOGLE_API_KEY")
-            or os.environ.get("GOOGLE_APIKEY")
-        )
+        # Resolve API key centrally; fail early if missing
+        self._api_key = api_key or get_gemini_api_key(required=True)
 
         # Try new SDK first
         try:

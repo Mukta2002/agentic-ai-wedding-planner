@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from dotenv import load_dotenv
+from app.config import get_gemini_api_key
 from google import genai
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from typing import Callable, TypeVar
@@ -26,18 +26,8 @@ class LLMClient:
     """
 
     def __init__(self, model: str | None = None, timeout_seconds: float = 20.0) -> None:
-        # Ensure environment variables from .env are available
-        try:
-            load_dotenv()  # no-op if .env is missing
-        except Exception:
-            # Proceed even if dotenv is unavailable; env may already be set
-            pass
-
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "GEMINI_API_KEY is not set. Add it to your .env or environment."
-            )
+        # Resolve API key centrally; fail early if missing
+        api_key = get_gemini_api_key(required=True)
 
         # Keep a default text model for legacy/compat compatibility.
         self.model = model or "gemini-2.5-flash"
