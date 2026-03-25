@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from app.config import get_gemini_api_key
+from app.config import get_gemini_api_key, DEFAULT_GEMINI_TEXT_MODEL
 from google import genai
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from typing import Callable, TypeVar
@@ -19,7 +19,8 @@ class LLMClient:
       specialized calls (text, embeddings, image, tts, video) as needed.
 
     Notes:
-    - Default text model is `gemini-2.5-flash` for fast, general text tasks.
+    - Default text model is defined by `DEFAULT_GEMINI_TEXT_MODEL` (currently
+      `gemini-2.5-flash`) for fast, general text tasks.
     - Agents should not instantiate this directly; they should depend on a
       centralized router. This class remains importable for legacy code and
       tests and provides `generate_text` for compatibility.
@@ -30,7 +31,7 @@ class LLMClient:
         api_key = get_gemini_api_key(required=True)
 
         # Keep a default text model for legacy/compat compatibility.
-        self.model = model or "gemini-2.5-flash"
+        self.model = model or DEFAULT_GEMINI_TEXT_MODEL
         self.client = genai.Client(api_key=api_key)
         self.timeout_seconds = timeout_seconds
 

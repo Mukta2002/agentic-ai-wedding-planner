@@ -1,129 +1,137 @@
 {
   "profile": {
-    "bride_name": "Sophia",
-    "groom_name": "Peter",
-    "destination": "Goa",
+    "bride_name": "Shagun",
+    "groom_name": "Arjav",
+    "destination": "Udaipur",
     "guest_count": 200,
-    "budget": 4000000.0,
+    "budget": 20000000.0,
     "wedding_dates": [
-      "2026-12-10",
-      "2026-12-11"
+      "2026-12-1",
+      "2026-12-2"
+    ],
+    "currency": "INR",
+    "wedding_place": "Udaipur",
+    "wedding_budget": 20000000.0,
+    "accommodation_budget_share": 0.4,
+    "selected_nights_override": null,
+    "revised_guest_count": null,
+    "prefer_budget_hotels": null,
+    "confirmed_budget_breakdown": {
+      "hotel_accommodation_venue": {
+        "percentage": 40.0,
+        "amount": 8000000
+      },
+      "catering": {
+        "percentage": 21.428571428571427,
+        "amount": 4285714
+      },
+      "decor": {
+        "percentage": 12.857142857142856,
+        "amount": 2571429
+      },
+      "photography_videography": {
+        "percentage": 8.571428571428571,
+        "amount": 1714286
+      },
+      "outfits_styling": {
+        "percentage": 6.857142857142857,
+        "amount": 1371429
+      },
+      "entertainment": {
+        "percentage": 4.285714285714286,
+        "amount": 857143
+      },
+      "invitations_branding": {
+        "percentage": 1.7142857142857142,
+        "amount": 342857
+      },
+      "misc_buffer": {
+        "percentage": 4.285714285714286,
+        "amount": 857142
+      }
+    },
+    "logo_style": "floral",
+    "logo_colors": [
+      "pastel but not very light"
+    ],
+    "logo_text_preference": "initials",
+    "logo_motif": "lotus and elephant but it should be less",
+    "logo_text_mode": "initials",
+    "logo_palette": [
+      "pastel but not very light"
+    ],
+    "logo_mood": "elegant",
+    "invite_style": "modern luxury",
+    "invite_colors": [
+      "as you feel right"
+    ],
+    "include_venue_details": true,
+    "include_rsvp": true,
+    "invite_vibe": null,
+    "invite_theme": "modern luxury",
+    "invite_background_scene": "backdrop of hotel selected",
+    "invite_palette": [
+      "as you feel right"
+    ],
+    "invite_mood": "it should be traditional",
+    "invite_floral_style": "no",
+    "invite_frame_style": "no",
+    "invite_layout_type": "one",
+    "selected_hotel": "Radisson Blu Palace Resort & Spa, Udaipur",
+    "teaser_style": "cinematic and royal",
+    "teaser_pacing": "slow dreamy",
+    "teaser_music_vibe": "soft instrumental",
+    "teaser_feel": "fashion forward",
+    "teaser_must_show": "yes all ceremonies",
+    "teaser_names_timing": "end-only",
+    "teaser_ending_text_style": "minimal elgant",
+    "ceremonies": [
+      {
+        "name": "Haldi",
+        "event_date": "Day 1",
+        "time_of_day": "morning",
+        "mood": "floral",
+        "palette": [
+          "lavender and white"
+        ],
+        "dress_code": "yellow and shades",
+        "guest_note": "no",
+        "include_in_teaser": true,
+        "include_in_style_guide": true
+      },
+      {
+        "name": "sangeet",
+        "event_date": "Day 1",
+        "time_of_day": "evening",
+        "mood": "blingy and party",
+        "palette": [
+          "shimmer and shine"
+        ],
+        "dress_code": "metallic and sequin",
+        "guest_note": "no",
+        "include_in_teaser": true,
+        "include_in_style_guide": true
+      },
+      {
+        "name": "wedding",
+        "event_date": "Day 2",
+        "time_of_day": "sun downer",
+        "mood": "traditional",
+        "palette": [
+          "red and maroon"
+        ],
+        "dress_code": "ivory and gold",
+        "guest_note": "no",
+        "include_in_teaser": true,
+        "include_in_style_guide": true
+      }
     ]
   },
-  "creative": {
-    "theme_name": "Coastal Reverie",
-    "theme_description": "A sophisticated Goan destination wedding blending relaxed coastal elegance with modern romance. Imagine sun-drenched beaches, terracotta hues meeting azure skies, and lush tropical greenery, creating an intimate yet grand celebration where love unfurls gracefully by the sea.",
-    "color_palette": [
-      "Terracotta",
-      "Dusty Blue",
-      "Champagne",
-      "Sand Beige",
-      "Soft Gold"
-    ],
-    "hashtags": [
-      "SophiaAndPeter",
-      "CoastalReverie",
-      "GoanLoveStory",
-      "ForeverInGoa",
-      "SPDecemberWedding"
-    ],
-    "invitation_text": "Sophia and Peter invite you to witness the beginning of their forever amidst the enchanting shores of Goa. Join us for a joyous celebration of love, laughter, and new beginnings on December 10th and 11th, 2026. Prepare for an unforgettable experience where the sun, sand, and sea will set the stage for our cherished union.",
-    "guest_style_guide": "We envision a festive atmosphere of relaxed elegance. For the main events, guests are encouraged to embrace 'Resort Chic' attire, featuring breathable fabrics like linen, silk, or light cotton in celebratory colors. Think elegant dresses, sophisticated jumpsuits, tailored trousers, or smart casual suits \u2013 with comfortable, stylish footwear suitable for beachside glamour.",
-    "invite_design_prompt": "Design a minimalist yet luxurious invitation suite. The main invitation features deckled-edge heavy cardstock in champagne or sand beige, with elegant, modern serif typography in soft gold or terracotta. Incorporate subtle, debossed blind-embossed motifs of abstract ocean waves or delicate palm fronds. A vellum overlay or belly band in dusty blue, printed with essential details, could complete the set. Keep the design clean, sophisticated, and evocative of understated Goan beauty."
-  },
-  "logistics": {
-    "confirmed_guest_count": 0,
-    "pending_guest_count": 200,
-    "declined_guest_count": 0,
-    "catering_headcount": 0,
-    "room_allocation": [],
-    "event_schedule": [
-      {
-        "event": "Welcome Dinner & Sangeet",
-        "date": "2026-12-10",
-        "time": "7:00 PM"
-      },
-      {
-        "event": "Wedding Ceremony",
-        "date": "2026-12-11",
-        "time": "2:00 PM"
-      },
-      {
-        "event": "Reception",
-        "date": "2026-12-11",
-        "time": "6:00 PM"
-      }
-    ],
-    "logistics_summary": "Join us for our destination wedding in beautiful Goa! Our celebrations begin with a Welcome Dinner & Sangeet on December 10th at 7 PM. The Wedding Ceremony will take place on December 11th at 2 PM, followed by the Reception at 6 PM."
-  },
-  "financial": {
-    "total_budget": 4000000.0,
-    "currency": "INR",
-    "guest_count": 200,
-    "venue_cost": 880000.0,
-    "catering_cost": 560000.0,
-    "decor_cost": 480000.0,
-    "accommodation_cost": 720000.0,
-    "photography_cost": 280000.0,
-    "entertainment_cost": 240000.0,
-    "misc_cost": 360000.0,
-    "total_estimated": 3520000.0,
-    "remaining_balance": 480000.0,
-    "budget_summary": "Here's a quick look at our budget estimate for the Goa celebration!\n\nWe're thrilled to confirm we're well within our total budget of **INR 4,000,000**, with a healthy surplus of **INR 480,000**. The estimated spend per guest comes in at **INR 17,600**.\n\nFor our Goa destination, the major cost splits are: Venue (~22%), Accommodation (~18%), and Decor (~12%). Catering is smartly anchored at approximately **INR 2,800 per guest**. Photography (~7%), Entertainment (~6%), and Miscellaneous (~9%) cover the remaining elements.\n\nAll looks on track for a fantastic event!"
-  },
-  "design_spec": {
-    "visual_style_name": "Sunkissed Reverie",
-    "mood_keywords": [
-      "Coastal",
-      "Reverie",
-      "Elegant",
-      "Sun-drenched",
-      "Azure",
-      "Terracotta",
-      "Lush",
-      "Modern",
-      "Romantic",
-      "Serene"
-    ],
-    "palette_names": [
-      "Terracotta",
-      "Dusty Blue",
-      "Champagne",
-      "Sand Beige",
-      "Soft Gold"
-    ],
-    "palette_hex": [
-      "#C97D60",
-      "#8FB0C7",
-      "#F5E9D8",
-      "#DCCFA8",
-      "#D2B77B"
-    ],
-    "motifs": [
-      "Abstract Ocean Waves",
-      "Delicate Palm Fronds",
-      "Goan Bougainvillea",
-      "Subtle Terracotta Patterns",
-      "Minimalist Seashell Impressions",
-      "Sun-kissed Horizon",
-      "Lush Tropical Foliage"
-    ],
-    "typography_direction": "Primary: Elegant, refined modern serif (e.g., Avenir Next, Baskerville influenced) for formality. Secondary: Clean, sophisticated sans-serif (e.g., Montserrat Light) for accents and details. Accent: Sparingly used, delicate hand-drawn script for personal touches like couple's names.",
-    "logo_direction": "An interlocking 'S&P' monogram in a clean, modern serif, subtly hinting at Art Deco. Lockups will include the monogram alongside full names 'Sophia & Peter' in an elegant sans-serif, with 'Coastal Reverie' sometimes present in a finer script. Textures will be debossed, blind embossed, or subtly foiled in soft gold for a premium, understated feel.",
-    "invite_art_direction": "Minimalist yet luxurious. Main invitation on heavy (600gsm+), deckled-edge cardstock in Champagne or Sand Beige. Typography in modern serif with soft gold foil for names and terracotta ink for details. Features blind-embossed abstract ocean waves or delicate palm fronds. A dusty blue vellum overlay or belly band, printed with essential details, will secure the suite. Complemented by a custom dusty blue wax seal with the S&P monogram.",
-    "wardrobe_art_direction": "Welcome Dinner & Sangeet: Guests in 'Tropical Glam' resort wear \u2013 vibrant colors, lightweight silks or linens, smart casual. Couple in contemporary, jewel-toned ensembles with ease of movement; Sophia in a flowing lehenga/gown, Peter in a bespoke linen suit or Nehru jacket. Wedding Ceremony: Guests in 'Ethereal Goan Chic' \u2013 semi-formal, pastel palettes or natural neutrals, flowing silhouettes (lightweight saris, elegant maxi dresses, linen suits). Couple in refined, elegant attire; Sophia in a champagne/ivory lehenga/sari with subtle gold/dusty blue accents, Peter in an ivory/cream sherwani or tailored linen suit. Reception: Guests in 'Glamorous Evening by the Sea' \u2013 formal cocktail/black-tie optional, richer tones, metallics, sophisticated gowns, tailored suits/tuxedos. Couple in breathtaking evening wear; Sophia in a deep dusty blue or soft gold gown/couture lehenga, Peter in a sharp navy/charcoal tuxedo or elegant bandhgala.",
-    "video_art_direction": "A cinematic, sun-drenched teaser, predominantly featuring golden hour light. Pacing is slow, romantic, and builds anticipation. Shots include gentle waves on a pristine Goan beach, close-ups of intricate invite details and the S&P monogram. Candid, intimate moments of the couple, silhouetted against breathtaking sunsets. Sweeping drone shots of the coastal venue, highlighting lush floral arrangements and bespoke terracotta/dusty blue decor. Glimpses of joyful Sangeet dancing, the serene ceremony setup, and elegant reception details. Music begins with an ethereal ambient score, transitions to light modern Indian fusion for the Sangeet, and concludes with a romantic orchestral piece.",
-    "luxury_level": "Refined Coastal Grandeur",
-    "destination_story": "Goa is intrinsically woven into the visual direction through the 'Coastal Reverie' theme. The color palette draws inspiration from its natural beauty: terracotta for its iconic roofs, dusty blue for the Arabian Sea, sand beige for its beaches, and soft gold for its sun-drenched glow. Motifs of palm fronds and ocean waves directly reflect the coastal landscape. The overall mood emphasizes a relaxed elegance synonymous with Goan charm, while infusing a modern romance. The focus on natural light, particularly golden hour, captures Goa's unique, ambient beauty, ensuring the celebration feels authentically rooted in its stunning locale."
-  },
-  "media": {
-    "logo_image_path": null,
-    "invite_image_path": null,
-    "style_guide_pdf_path": "assets\\style_guides\\sophia-peter-style-guide-20260317-234559.pdf",
-    "teaser_video_prompt": "Here's a concise, production-ready teaser video prompt:\n\nA cinematic, sun-drenched teaser for Sophia & Peter's Goan \"Sunkissed Reverie.\" Golden hour light bathes pristine beaches, highlighting bespoke terracotta/dusty blue decor and intricate details. Intimate couple moments, silhouetted against breathtaking sunsets, build romantic anticipation. Glimpses of joyful Sangeet dancing, the serene ceremony, and elegant reception unfold. Music evolves from ethereal ambient to modern Indian fusion, concluding with a romantic orchestral piece. A premium, polished destination story of coastal elegance and heartfelt celebration.",
-    "teaser_video_status": "prompt_generated",
-    "teaser_video_metadata_path": "assets/video/sophia-peter-teaser-metadata-20260317-234605.json"
-  },
-  "state_status": "updated_after_guest_change",
-  "last_updated": "2026-03-17T23:46:17.517789"
+  "creative": null,
+  "logistics": null,
+  "financial": null,
+  "design_spec": null,
+  "media": null,
+  "state_status": "profile_with_ceremonies",
+  "last_updated": "2026-03-25T14:35:01.175530"
 }
