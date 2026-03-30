@@ -1,0 +1,49 @@
+        # Subtle text shadow for readability
+        shadow = (0, 0, 0, 70) if primary_fill[0] < 100 else (255, 255, 255, 70)
+        if role == "names" and draw.textlength(text, font=font) > int(max_text_width * 0.9) and ("&" in text):
+            # Split bride and groom onto separate centered lines for elegance
+            parts = [p.strip() for p in text.split("&", 1)]
+            gap_between = int(H * 0.012)
+            total_h_names = 0
+            for j, part in enumerate(parts):
+                bw, bh = draw.textbbox((0, 0), part, font=font)[2:4]
+                nx = (W - bw) // 2
+                draw.text((nx, y + total_h_names + 1), part, fill=shadow, font=font)
+                draw.text((nx, y + total_h_names), part, fill=fill, font=font)
+                total_h_names += bh
+                if j == 0:
+                    total_h_names += gap_between
+            # Optional thin divider under split names too
+            try:
+                line_w = max(int(W * 0.18), int(W * 0.12))
+                line_x0 = (W - line_w) // 2
+                line_y = y + total_h_names + int(H * 0.006)
+                line_color = (fill[0], fill[1], fill[2], 90)
+                draw.line([(line_x0, line_y), (line_x0 + line_w, line_y)], fill=line_color, width=max(1, int(min(W, H) * 0.002)))
+                y = line_y + int(H * 0.012)
+            except Exception:
+                y += total_h_names + _gap_for("names")
+            if i < len(wrapped_pairs) - 1:
+                y += extra_per_gap
+            continue
+        # shadow then text for all other roles
+        draw.text((x, y + 1), text, fill=shadow, font=font)
+        draw.text((x, y), text, fill=fill, font=font)
+        y += h + _gap_for(role)
+        if i < len(wrapped_pairs) - 1:
+            y += extra_per_gap
+
+    composed_img = Image.alpha_composite(bg, overlay).convert("RGB")
+    composed_img.save(out_path)
+
+    exists = os.path.exists(out_path)
+    size = os.path.getsize(out_path) if exists else 0
+    return {
+        "ok": exists,
+        "path": out_path,
+        "exists": exists,
+        "error": None,
+        "size": size,
+        "fields": {},
+        "render": {"sections": composed_payload, "lines": lines},
+    }

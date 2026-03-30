@@ -1,0 +1,280 @@
+    if sec.get("blessing_line"):
+        ordered.append(sec["blessing_line"])  # type: ignore[index]
+    for k in ("date_line", "venue_line", "place_line", "rsvp_line"):
+        v = sec.get(k)
+        if v:
+            ordered.append(v)
+    return [ln for ln in ordered if ln]
+
+
+def _compose_labeled_lines_from_sections(sec: Dict[str, str]) -> List[Tuple[str, str]]:
+    """Return (text, role) pairs maintaining a semantic role per line.
+
+    Roles used: header|eyebrow, names, phrase, blessing, date, venue, place, rsvp
+    """
+    labeled: List[Tuple[str, str]] = []
+    if sec.get("eyebrow"):
+        labeled.append((sec["eyebrow"], "header"))
+    if sec.get("names"):
+        labeled.append((sec["names"], "names"))
+    if sec.get("invitation_line"):
+        labeled.append((sec["invitation_line"], "phrase"))
+    if sec.get("blessing_line"):
+        labeled.append((sec["blessing_line"], "blessing"))
+    if sec.get("date_line"):
+        labeled.append((sec["date_line"], "date"))
+    if sec.get("venue_line"):
+        labeled.append((sec["venue_line"], "venue"))
+    if sec.get("place_line"):
+        labeled.append((sec["place_line"], "place"))
+    if sec.get("rsvp_line"):
+        labeled.append((sec["rsvp_line"], "rsvp"))
+    return labeled
+
+
+def _wrap_labeled_lines(draw: "ImageDraw.ImageDraw", lines: List[Tuple[str, str]], max_text_width: int,
+                        fonts: Dict[str, "ImageFont.ImageFont"]) -> List[Tuple[str, str]]:
+    """Wrap each (text, role) to width, preserving roles across wrapped fragments."""
+    import textwrap
+    wrapped: List[Tuple[str, str]] = []
+    for text, role in lines:
+        font = fonts.get(role) or fonts.get("body")
+        if font is None:
+            wrapped.append((text, role))
+            continue
+        try:
+            avg_w = draw.textlength("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", font=font) / 52.0
+            max_chars = max(10, int(max_text_width / max(1.0, avg_w)))
+        except Exception:
+            max_chars = 40
+        chunks = textwrap.wrap(text, width=max_chars) if len(text) > max_chars else [text]
+        for c in chunks:
+            wrapped.append((c, role))
+    return wrapped
+
+
+def _sample_region_luminance(img: "Image.Image", box: Tuple[int, int, int, int]) -> float:  # type: ignore
+    try:
+        region = img.crop(box).convert("L")
+        # Downsample to reduce cost
+        small = region.resize((32, 32))
+        # Average luminance 0..255
+        px = small.getdata()
+        return sum(px) / float(len(px) or 1)
+    except Exception:
+        return 180.0  # assume bright
+
+
+def validate_payload(payload: Dict) -> Optional[str]:
+    # Required: bride, groom, at least one date, place
+    if not (payload.get("bride_name") and payload.get("groom_name")):
+        return "Missing bride or groom name"
+    dates = payload.get("wedding_dates") or []
+    if not isinstance(dates, list) or len([d for d in dates if d]):
+        pass
+    else:
+        return "Missing wedding dates"
+    if not payload.get("wedding_place"):
+        return "Missing wedding place"
+    return None
+
+
+def render_invite_text(background_path: str, payload: Dict, out_path: str) -> Dict:
+    """Overlay exact invite text using confirmed payload onto a background image.
+
+    Returns a dict with info: { ok: bool, path, exists, error, fields }
+    """
+    fields = {
+        "bride_name": payload.get("bride_name"),
+        "groom_name": payload.get("groom_name"),
+        "wedding_dates": payload.get("wedding_dates"),
+        "wedding_place": payload.get("wedding_place"),
+        "selected_hotel": payload.get("selected_hotel"),
+        "include_venue_details": payload.get("include_venue_details"),
+        "include_rsvp": payload.get("include_rsvp"),
+    }
+
+    # Validation/echo — printed by caller for transparency before saving
+    err = validate_payload(payload)
+    if err is not None:
+        return {"ok": False, "path": out_path, "exists": False, "error": err, "fields": fields}
+
+    if Image is None:
+        return {"ok": False, "path": out_path, "exists": False, "error": "Pillow not available", "fields": fields}
+
+    try:
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    except Exception:
+        pass
+
+    try:
+        bg = Image.open(background_path).convert("RGBA")
+    except Exception as e:
+        return {"ok": False, "path": out_path, "exists": False, "error": f"background open failed: {e}", "fields": fields}
+
+    W, H = bg.size
+    overlay = Image.new("RGBA", (W, H), (255, 255, 255, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    # Compose sections and flattened lines (explicit render payload)
+    sections = compose_invite_sections(payload)
+    # Build labeled lines so we can style: header, names, phrase, date, venue, place, rsvp
+    labeled = _compose_labeled_lines_from_sections(sections)
+
+    # Typography: refined hierarchy with role-based font pairing
+    base = int(min(W, H))
+    fonts = {
+        "header": _load_font(size=max(26, int(base * 0.038)), role="header"),
+        "names": _load_font(size=max(64, int(base * 0.11)), role="names"),
+        "phrase": _load_font(size=max(34, int(base * 0.05)), role="phrase"),
+        "date": _load_font(size=max(30, int(base * 0.042)), role="body"),
+        "venue": _load_font(size=max(28, int(base * 0.04)), role="body"),
+        "place": _load_font(size=max(28, int(base * 0.04)), role="body"),
+        "rsvp": _load_font(size=max(26, int(base * 0.036)), role="rsvp"),
+        "blessing": _load_font(size=max(28, int(base * 0.04)), role="body"),
+        "body": _load_font(size=max(28, int(base * 0.04)), role="body"),
+    }
+    if any(v is None for v in [fonts["header"], fonts["names"], fonts["body"]]):
+        return {"ok": False, "path": out_path, "exists": False, "error": "Font load failed", "fields": fields}
+
+    max_text_width = int(W * 0.72)
+    wrapped_pairs = _wrap_labeled_lines(draw, labeled, max_text_width, fonts)
+
+    # Measure bboxes after wrapping
+    roles: List[str] = []
+    bboxes: List[Tuple[int, int]] = []
+    heights: List[int] = []
+    for text, role in wrapped_pairs:
+        font = fonts.get(role) or fonts.get("body")
+        bbox = draw.textbbox((0, 0), text, font=font)
+        w = bbox[2] - bbox[0]
+        h = bbox[3] - bbox[1]
+        roles.append(role)
+        bboxes.append((w, h))
+        heights.append(h)
+
+    # Spacing tuned per role (more air around names and before RSVP)
+    def _gap_for(role: str) -> int:
+        if role in ("header", "eyebrow"):
+            return int(H * 0.018)
+        if role == "names":
+            return int(H * 0.032)
+        if role in ("phrase", "date"):
+            return int(H * 0.022)
+        if role in ("venue", "place"):
+            return int(H * 0.018)
+        if role == "rsvp":
+            return int(H * 0.024)
+        return int(H * 0.016)
+
+    total_h = 0
+    for i in range(len(heights)):
+        total_h += heights[i]
+        if i < len(heights) - 1:
+            total_h += _gap_for(roles[i])
+
+    # Define an elegant vertical band and distribute lines across it
+    band_top = int(H * 0.18)
+    band_bottom = int(H * 0.86)
+    band_height = max(1, band_bottom - band_top)
+    # Base position if content exceeds band
+    y = band_top
+    # Compute additional spacing to use more vertical space when available
+    gaps = [
+        _gap_for(roles[i]) for i in range(len(heights) - 1)
+    ]
+    base_stack_h = sum(heights) + sum(gaps)
+    extra_per_gap = 0
+    if len(gaps) > 0 and base_stack_h < band_height:
+        extra = band_height - base_stack_h
+        extra_per_gap = int(extra / max(1, len(gaps)))
+    # Compute union text area bounding box for background softening
+    text_left = min([(W - bboxes[i][0]) // 2 for i in range(len(bboxes))]) if bboxes else W // 4
+    text_right = max([(W + bboxes[i][0]) // 2 for i in range(len(bboxes))]) if bboxes else int(W * 0.75)
+    text_top = y
+    text_bottom = y + total_h
+
+    # Subtle readability aids that preserve the scenic image (no boxes/frames)
+    try:
+        # 1) Softer vertical edge gradients (reduced alpha)
+        shade = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        sdraw = ImageDraw.Draw(shade)
+        top_h = int(H * 0.16)
+        bot_h = int(H * 0.16)
+        if top_h > 0:
+            for i in range(top_h):
+                a = int(40 * (1.0 - (i / max(1, top_h))))
+                sdraw.line([(0, i), (W, i)], fill=(0, 0, 0, a))
+        if bot_h > 0:
+            for j in range(bot_h):
+                a = int(40 * (1.0 - (j / max(1, bot_h))))
+                yb = H - 1 - j
+                sdraw.line([(0, yb), (W, yb)], fill=(0, 0, 0, a))
+        bg = Image.alpha_composite(bg, shade)
+
+        # 2) Conditional, very gentle blur only if mid-tone background makes text harder to read
+        if ImageFilter is not None and text_right > text_left and text_bottom > text_top:
+            region_lumi = _sample_region_luminance(bg, (text_left, text_top, text_right, text_bottom))
+            if 110 < region_lumi < 160:
+                blurred = bg.filter(ImageFilter.GaussianBlur(radius=max(2, int(min(W, H) * 0.005))))
+                mask = Image.new("L", (W, H), 0)
+                mdraw = ImageDraw.Draw(mask)
+                pad_x = int(W * 0.028)
+                pad_y = int(H * 0.012)
+                mdraw.rounded_rectangle(
+                    (max(0, text_left - pad_x), max(0, text_top - pad_y), min(W, text_right + pad_x), min(H, text_bottom + pad_y)),
+                    radius=max(6, int(min(W, H) * 0.012)), fill=120
+                )
+                mask = mask.filter(ImageFilter.GaussianBlur(radius=max(4, int(min(W, H) * 0.012))))
+                bg = Image.composite(blurred, bg, mask)
+    except Exception:
+        pass
+
+    # Adaptive text color based on background luminance (sample underlying area)
+    lumi = _sample_region_luminance(bg, (text_left, text_top, text_right, text_bottom))
+    primary_fill = (24, 24, 24, 255) if lumi >= 150 else (240, 240, 240, 255)
+    header_fill = (18, 18, 18, 255) if lumi >= 150 else (248, 248, 248, 255)
+
+    # Draw lines centered with refined hierarchy; add a slim divider under names
+    for i, (text, role) in enumerate(wrapped_pairs):
+        font = fonts.get(role) or fonts.get("body")
+        fill = header_fill if role in ("header", "eyebrow") else primary_fill
+        w, h = bboxes[i]
+        x = (W - w) // 2
+
+        # Subtle shadow for readability on busy backgrounds
+        shadow = (0, 0, 0, 70) if fill[0] > 128 else (255, 255, 255, 70)
+        try:
+            draw.text((x + 1, y + 1), text, fill=shadow, font=font)
+        except Exception:
+            pass
+        draw.text((x, y), text, fill=fill, font=font)
+
+        # If names, consider a very thin divider line underneath for elegance
+        if role == "names":
+            try:
+                line_w = max(int(w * 0.35), int(W * 0.12))
+                line_x0 = (W - line_w) // 2
+                line_y = y + h + int(H * 0.008)
+                line_color = (fill[0], fill[1], fill[2], 90)
+                draw.line([(line_x0, line_y), (line_x0 + line_w, line_y)], fill=line_color, width=max(1, int(min(W, H) * 0.002)))
+                # Increase spacing after the divider
+                y = line_y + int(H * 0.012)
+            except Exception:
+                y += h + _gap_for(role)
+        else:
+            y += h + _gap_for(role)
+
+        # Increase spacing to gently use vertical band
+        if i < len(wrapped_pairs) - 1:
+            y += extra_per_gap
+
+    # Optional decorative caricature/illustration (tasteful, small, not dominant)
+    try:
+        include_cari = bool(payload.get("invite_include_caricature"))
+        cari_path = (
+            str(payload.get("invite_caricature_path") or "").strip()
+            or os.path.join("assets", "invites", "caricature.png")
+        )
+        if include_cari and os.path.exists(cari_path):
+            deco = Image.open(cari_path).convert("RGBA")

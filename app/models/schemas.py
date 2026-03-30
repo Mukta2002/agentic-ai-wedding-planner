@@ -18,6 +18,14 @@ class CeremonyPlanItem(BaseModel):
     guest_note: Optional[str] = None
     include_in_teaser: bool = True
     include_in_style_guide: bool = True
+    # Teaser-specific per-ceremony preferences (optional, additive)
+    teaser_bride_outfit: Optional[str] = None
+    teaser_groom_outfit: Optional[str] = None
+    teaser_styling_mode: Optional[str] = None
+    teaser_backdrop: Optional[str] = None
+    teaser_highlights: Optional[str] = None
+    teaser_couple_appearance_refs: Optional[str] = None
+    teaser_jewelry_hair_makeup: Optional[str] = None
 
 
 class WeddingProfile(BaseModel):
@@ -84,6 +92,23 @@ class WeddingProfile(BaseModel):
     teaser_must_show: Optional[str] = None             # free text: ceremonies or moments to include
     teaser_names_timing: Optional[str] = None          # end-only / throughout / early reveal
     teaser_ending_text_style: Optional[str] = None     # minimal elegant / grand royal / cinematic title card
+    # Expanded teaser questionnaire (additive)
+    bride_outfit_style: Optional[str] = None           # lehenga / saree / gown / indo-western / modern silhouette
+    groom_outfit_style: Optional[str] = None           # sherwani / tuxedo / bandhagala / kurta set / modern formal
+    styling_mode: Optional[str] = None                 # traditional Indian / fusion / modern luxury
+    bride_skin_tone_pref: Optional[str] = None         # appearance or reference
+    groom_skin_tone_pref: Optional[str] = None
+    hair_styling_vibe: Optional[str] = None            # soft waves / sleek bun / braided / etc.
+    jewelry_vibe: Optional[str] = None                 # minimal / statement / royal / contemporary
+    teaser_backdrop: Optional[str] = None              # palace / beach / garden / city skyline / ballroom / heritage corridor / sunset waterfront / custom
+    teaser_film_feel: Optional[str] = None             # editorial / cinematic / festive / dreamy / fashion-film
+    teaser_shot_preferences: Optional[str] = None      # close-ups / wides / reveals / twirls / hand/jewelry / entrance / dance
+    teaser_featured_ceremonies: Optional[str] = None   # which ceremonies should get dedicated moments
+    teaser_text_overlays: Optional[str] = None         # yes/no/details for overlays beyond names
+    teaser_type: Optional[str] = None                  # save-the-date / event teaser / cinematic wedding trailer
+    music_mood_exact: Optional[str] = None             # exact background music mood
+    music_instrumental_or_lyrical: Optional[str] = None # instrumental only / lyrical
+    music_genre_specific: Optional[str] = None         # soft piano / orchestral / regal / Sufi-inspired / celebratory / ambient / fashion-film
     # Ceremony plan (additive, used by teaser/style guide)
     ceremonies: Optional[List[CeremonyPlanItem]] = None
 

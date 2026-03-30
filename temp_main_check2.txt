@@ -1,0 +1,40 @@
+        include_venue_details=getattr(profile, 'include_venue_details', None),
+        selected_hotel=getattr(profile, 'selected_hotel', None),
+    )
+    print("===== Final Invite Copy (Gemini) =====")
+    try:
+        import json as _json
+        print(_json.dumps(copy_sections, indent=2, ensure_ascii=False))
+    except Exception:
+        print(copy_sections)
+    print("[Confirm] Raw field labels not sent to renderer")
+
+    invite_overlay = render_invite_sections(background_path=bg_out, sections_payload=copy_sections, out_path=final_out)
+    # Single clean render payload print (post-render)
+    print("===== Render Payload (Clean) =====")
+    try:
+        import json as _json
+        print(_json.dumps(invite_overlay.get("render"), indent=2, ensure_ascii=False))
+    except Exception:
+        try:
+            print(invite_overlay.get("render"))
+        except Exception:
+            pass
+    invite_path = final_out if invite_overlay.get("ok") else None
+    invite_meta = {
+        "file": {"path": final_out, "exists": bool(invite_path and os.path.exists(final_out)), "size": invite_overlay.get("size", 0)},
+        "overlay": invite_overlay,
+        "background": bg_meta,
+    }
+
+    # Clean one-line summaries for images (logo/invite)
+    def _img_summary(kind: str, path: str | None, meta: Dict[str, Any]) -> str:
+        file_info = (meta or {}).get("file", {})
+        logs = (meta or {}).get("logs", {})
+        return (
+            f"[{kind}] saved={file_info.get('exists', False)} path={file_info.get('path')} "
+            f"size={file_info.get('size', 0)} model={logs.get('model') or logs.get('used_model')}"
+        )
+
+    print(_img_summary("Logo", logo_path, logo_meta))
+    print(_img_summary("Invite", invite_path, invite_meta))

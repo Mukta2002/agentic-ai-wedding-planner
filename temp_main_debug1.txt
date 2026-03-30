@@ -1,0 +1,84 @@
+                from app.services.invite_text_overlay import render_invite_sections
+                from app.services.invite_copy_service import generate_invitation_copy
+                bg_out = os.path.join("assets", "invites", "invite_background.png")
+                final_out = os.path.join("assets", "invites", "invite.png")
+
+                # Debug visibility for invite background generation (interactive flow)
+                try:
+                    requested_venue = (
+                        getattr(profile, 'selected_hotel', None)
+                        or getattr(profile, 'wedding_place', None)
+                        or getattr(profile, 'destination', None)
+                        or '-'
+                    )
+                    bg_mode = 'venue_inspired' if getattr(profile, 'selected_hotel', None) else 'generic_scene'
+                    print("===== Invite Background Debug =====")
+                    print(f"Requested venue: {requested_venue}")
+                    print(f"Generation mode: {bg_mode}")
+                    print("Final prompt (image generation):")
+                    try:
+                        import textwrap as _tw
+                        for line in _tw.wrap(invite_prompt, width=120):
+                            print(line)
+                    except Exception:
+                        print(invite_prompt)
+                    print("===================================")
+                except Exception:
+                    pass
+
+                _, bg_meta = router.generate_invite_image(invite_prompt, out_path=bg_out, state=None)
+
+                # Post-generation verification (non-blocking)
+                try:
+                    ver = router.verify_invite_background(
+                        image_path=bg_out,
+                        venue_name=getattr(profile, 'selected_hotel', None),
+                        place_name=(getattr(profile, 'wedding_place', None) or getattr(profile, 'destination', None)),
+                    )
+                    print("===== Invite Background Verification =====")
+                    try:
+                        import json as _json
+                        print(_json.dumps({k: v for k, v in ver.items() if not str(k).startswith('_')}, indent=2))
+                    except Exception:
+                        print(ver)
+                    if not bool(ver.get('is_match', False)):
+                        print("[WARNING] Generated image does NOT match requested venue")
+                    print("===========================================")
+                except Exception as _ver_e:
+                    print(f"[Invite-Verify] skipped due to error: {_ver_e}")
+
+                # Generate polished invitation copy via Gemini
+                print("\n===== Generating Invite Copy (Gemini) =====")
+                theme_hint = getattr(profile, 'invite_theme', None) or getattr(profile, 'invite_style', None)
+                copy_sections = generate_invitation_copy(
+                    profile,
+                    theme_hint=theme_hint,
+                    include_rsvp=getattr(profile, 'include_rsvp', None),
+                    include_venue_details=getattr(profile, 'include_venue_details', None),
+                    selected_hotel=getattr(profile, 'selected_hotel', None),
+                )
+                print("===== Final Invite Copy (Gemini) =====")
+                try:
+                    import json as _json
+                    print(_json.dumps(copy_sections, indent=2, ensure_ascii=False))
+                except Exception:
+                    print(copy_sections)
+                print("===== Render Payload (Clean) =====")
+                try:
+                    import json as _json
+                    print(_json.dumps(copy_sections, indent=2, ensure_ascii=False))
+                except Exception:
+                    print(copy_sections)
+                print("[Confirm] Raw field labels not sent to renderer")
+
+                # Render overlay with composed sections only
+                invite_overlay = render_invite_sections(
+                    background_path=bg_out,
+                    sections_payload=copy_sections,
+                    out_path=final_out,
+                )
+                invite_path = final_out if invite_overlay.get("ok") else None
+                invite_meta = {
+                    "file": {"path": final_out, "exists": bool(invite_path and os.path.exists(final_out)), "size": invite_overlay.get("size", 0)},
+                    "overlay": invite_overlay,
+                    "background": bg_meta,

@@ -1,0 +1,100 @@
+            import textwrap as _tw
+            for line in _tw.wrap(invite_prompt, width=120):
+                print(line)
+        except Exception:
+            print(invite_prompt)
+        print("===================================")
+    except Exception:
+        pass
+
+    _, bg_meta = router.generate_invite_image(invite_prompt, out_path=bg_out, state=state)
+
+    # === Post-generation: Verification step (non-blocking) ===
+    try:
+        ver = router.verify_invite_background(
+            image_path=bg_out,
+            venue_name=getattr(profile, 'selected_hotel', None),
+            place_name=(getattr(profile, 'wedding_place', None) or getattr(profile, 'destination', None)),
+        )
+        print("===== Invite Background Verification =====")
+        try:
+            import json as _json
+            print(_json.dumps({k: v for k, v in ver.items() if not str(k).startswith('_')}, indent=2))
+        except Exception:
+            print(ver)
+        if not bool(ver.get('is_match', False)):
+            print("[WARNING] Generated image does NOT match requested venue")
+        print("===========================================")
+    except Exception as _ver_e:
+        print(f"[Invite-Verify] skipped due to error: {_ver_e}")
+    # Generate polished invitation copy via Gemini
+    print("\n===== Generating Invite Copy (Gemini) =====")
+    theme_hint = getattr(profile, 'invite_theme', None) or getattr(profile, 'invite_style', None)
+    copy_sections = generate_invitation_copy(
+        profile,
+        theme_hint=theme_hint,
+        include_rsvp=getattr(profile, 'include_rsvp', None),
+        include_venue_details=getattr(profile, 'include_venue_details', None),
+        selected_hotel=getattr(profile, 'selected_hotel', None),
+    )
+    print("===== Final Invite Copy (Gemini) =====")
+    try:
+        import json as _json
+        print(_json.dumps(copy_sections, indent=2, ensure_ascii=False))
+    except Exception:
+        print(copy_sections)
+    print("===== Render Payload (Clean) =====")
+    try:
+        import json as _json
+        print(_json.dumps(copy_sections, indent=2, ensure_ascii=False))
+    except Exception:
+        print(copy_sections)
+    print("[Confirm] Raw field labels not sent to renderer")
+
+    invite_overlay = render_invite_sections(background_path=bg_out, sections_payload=copy_sections, out_path=final_out)
+    invite_path = final_out if invite_overlay.get("ok") else None
+    invite_meta = {
+        "file": {"path": final_out, "exists": bool(invite_path and os.path.exists(final_out)), "size": invite_overlay.get("size", 0)},
+        "overlay": invite_overlay,
+        "background": bg_meta,
+    }
+
+    # Clean one-line summaries for images (logo/invite)
+    def _img_summary(kind: str, path: str | None, meta: Dict[str, Any]) -> str:
+        file_info = (meta or {}).get("file", {})
+        logs = (meta or {}).get("logs", {})
+        return (
+            f"[{kind}] saved={file_info.get('exists', False)} path={file_info.get('path')} "
+            f"size={file_info.get('size', 0)} model={logs.get('model') or logs.get('used_model')}"
+        )
+
+    print(_img_summary("Logo", logo_path, logo_meta))
+    print(_img_summary("Invite", invite_path, invite_meta))
+    print(f"[Invite-Background] path={bg_out} exists={os.path.exists(bg_out)}")
+
+    # Grounded generation summary before teaser/style guide (current session only)
+    try:
+        cers = list(getattr(profile, 'ceremonies', []) or [])
+        teaser_inc = [c.name for c in cers if getattr(c, 'include_in_teaser', True)]
+        style_inc = [c.name for c in cers if getattr(c, 'include_in_style_guide', True)]
+        print("\n===== Generation Summary (Grounded) =====")
+        print(f"Couple: {profile.bride_name} & {profile.groom_name}")
+        print(f"Place:  {getattr(profile, 'wedding_place', None) or profile.destination}")
+        print(f"Dates:  {', '.join(profile.wedding_dates)}")
+        if getattr(profile, 'selected_hotel', None):
+            print(f"Hotel:  {profile.selected_hotel}")
+        print(f"Teaser ceremonies: {', '.join(teaser_inc) if teaser_inc else '-'}")
+        print(f"Style guide ceremonies: {', '.join(style_inc) if style_inc else '-'}")
+        print("==================================\n")
+    except Exception:
+        pass
+
+    # PART 2: Video (concise output only)
+
+    video_path, video_meta = router.generate_teaser_video(video_prompt, state=state)
+
+    def _video_summary(meta: Dict[str, Any]) -> str:
+        file_info = (meta or {}).get("file", {})
+        status = (meta or {}).get("status")
+        exists_flag = file_info.get("exists", False)
+        path = file_info.get("path")

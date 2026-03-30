@@ -1,0 +1,34 @@
+*** Begin Patch
+*** Update File: app/services/invite_text_overlay.py
+@@
+-    # Compose sections and flattened lines (explicit render payload)
+-    sections = compose_invite_sections(payload)
++    # Compose sections and flattened lines (explicit render payload)
++    sections = compose_invite_sections(payload)
+@@
+-    # Build labeled lines so we can style: header, names, phrase, date, venue, place, rsvp
+-    labeled = _compose_labeled_lines_from_sections(sections)
++    # Build labeled lines so we can style: header, names, phrase, date, venue, place, rsvp
++    labeled = _compose_labeled_lines_from_sections(sections)
++    # Flat list of text lines (no nesting)
++    lines: List[str] = [t for t, _ in labeled]
++    logger.debug("Payload built successfully")
++    logger.debug(f"Lines count: {len(lines)}")
+@@
+-    wrapped_pairs = _wrap_labeled_lines(draw, labeled, max_text_width, fonts)
++    wrapped_pairs = _wrap_labeled_lines(draw, labeled, max_text_width, fonts)
++    logger.debug("Rendering invite ONCE")
+@@
+-        return {
++        return {
+             "ok": exists,
+             "path": out_path,
+             "exists": exists,
+             "error": None,
+             "size": size,
+             "fields": fields,
+             # Expose explicit render payload for visibility/validation
+-            "render": {"sections": sections, "lines": [t for t, _ in labeled]},
++            "render": {"sections": sections, "lines": lines},
+         }
+*** End Patch

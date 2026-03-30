@@ -1,0 +1,80 @@
+        "header_line": header_line,
+        "names_line": names_line,
+        "body_lines": body_lines,
+        "date_line": date_line,
+        "venue_line": venue_line,
+        "place_line": place_line,
+        "rsvp_line": rsvp_line,
+    }
+
+    # Convert sections into labeled lines for typography control
+    sec: Dict[str, str] = {
+        "eyebrow": header_line,
+        "names": names_line,
+        # invitation_line comes from body_lines[0] if present; the rest are general body
+        "invitation_line": (body_lines[0] if body_lines else ""),
+        "date_line": date_line,
+        "venue_line": venue_line,
+        "place_line": place_line,
+        "rsvp_line": rsvp_line,
+    }
+    labeled = _compose_labeled_lines_from_sections(sec)
+    # Insert remaining body lines (if any) with role 'body' after the phrase
+    if body_lines and len(body_lines) > 1:
+        insert_at = 0
+        for idx, (_t, r) in enumerate(labeled):
+            if r == "phrase":
+                insert_at = idx + 1
+                break
+        extras = [(t, "body") for t in body_lines[1:]]
+        labeled[insert_at:insert_at] = extras
+
+    # Use the same drawing implementation as render_invite_text with minimal duplication
+    if Image is None:
+        return {"ok": False, "path": out_path, "exists": False, "error": "Pillow not available", "fields": {}}
+
+    try:
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    except Exception:
+        pass
+
+    try:
+        bg = Image.open(background_path).convert("RGBA")
+    except Exception as e:
+        return {"ok": False, "path": out_path, "exists": False, "error": f"background open failed: {e}", "fields": {}}
+
+    W, H = bg.size
+    overlay = Image.new("RGBA", (W, H), (255, 255, 255, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    # Typography hierarchy (names prominent, role-aware)
+    base = int(min(W, H))
+    fonts = {
+        "header": _load_font(size=max(26, int(base * 0.038)), role="header"),
+        "names": _load_font(size=max(64, int(base * 0.11)), role="names"),
+        "phrase": _load_font(size=max(34, int(base * 0.05)), role="phrase"),
+        "date": _load_font(size=max(30, int(base * 0.042)), role="body"),
+        "venue": _load_font(size=max(28, int(base * 0.04)), role="body"),
+        "place": _load_font(size=max(28, int(base * 0.04)), role="body"),
+        "rsvp": _load_font(size=max(26, int(base * 0.036)), role="rsvp"),
+        "blessing": _load_font(size=max(28, int(base * 0.04)), role="body"),
+        "body": _load_font(size=max(28, int(base * 0.04)), role="body"),
+    }
+    if any(v is None for v in [fonts["header"], fonts["names"], fonts["body"]]):
+        return {"ok": False, "path": out_path, "exists": False, "error": "Font load failed", "fields": {}}
+
+    max_text_width = int(W * 0.72)
+    wrapped_pairs = _wrap_labeled_lines(draw, labeled, max_text_width, fonts)
+
+    roles: List[str] = []
+    bboxes: List[Tuple[int, int]] = []
+    heights: List[int] = []
+    for text, role in wrapped_pairs:
+        font = fonts.get(role) or fonts.get("body")
+        bbox = draw.textbbox((0, 0), text, font=font)
+        w = bbox[2] - bbox[0]
+        h = bbox[3] - bbox[1]
+        bboxes.append((w, h))
+        heights.append(h)
+        roles.append(role)
+

@@ -1,0 +1,309 @@
+        fill = header_fill if role in ("header", "eyebrow") else primary_fill
+        w, h = bboxes[i]
+        x = (W - w) // 2
+
+        # Subtle shadow for readability on busy backgrounds
+        shadow = (0, 0, 0, 70) if fill[0] > 128 else (255, 255, 255, 70)
+        try:
+            draw.text((x + 1, y + 1), text, fill=shadow, font=font)
+        except Exception:
+            pass
+        draw.text((x, y), text, fill=fill, font=font)
+
+        # If names, consider a very thin divider line underneath for elegance
+        if role == "names":
+            try:
+                line_w = max(int(w * 0.35), int(W * 0.12))
+                line_x0 = (W - line_w) // 2
+                line_y = y + h + int(H * 0.008)
+                line_color = (fill[0], fill[1], fill[2], 90)
+                draw.line([(line_x0, line_y), (line_x0 + line_w, line_y)], fill=line_color, width=max(1, int(min(W, H) * 0.002)))
+                # Increase spacing after the divider
+                y = line_y + int(H * 0.012)
+            except Exception:
+                y += h + _gap_for(role)
+        else:
+            y += h + _gap_for(role)
+
+        # Increase spacing to gently use vertical band
+        if i < len(wrapped_pairs) - 1:
+            y += extra_per_gap
+
+    # Optional decorative caricature/illustration (tasteful, small, not dominant)
+    try:
+        include_cari = bool(payload.get("invite_include_caricature"))
+        cari_path = (
+            str(payload.get("invite_caricature_path") or "").strip()
+            or os.path.join("assets", "invites", "caricature.png")
+        )
+        if include_cari and os.path.exists(cari_path):
+            deco = Image.open(cari_path).convert("RGBA")
+            # Scale to ~14% width, preserve aspect, and place near lower-right with margin
+            target_w = int(W * 0.14)
+            scale = max(1, int(target_w / max(1, deco.size[0])))
+            new_w = target_w
+            new_h = int(deco.size[1] * (new_w / float(deco.size[0])))
+            deco = deco.resize((new_w, new_h))
+            margin_x = int(W * 0.04)
+            margin_y = int(H * 0.04)
+            pos = (W - new_w - margin_x, H - new_h - margin_y)
+            overlay.alpha_composite(deco, dest=pos)
+    except Exception:
+        pass
+
+    composed = Image.alpha_composite(bg, overlay).convert("RGB")
+    composed.save(out_path)
+
+    exists = os.path.exists(out_path)
+    size = os.path.getsize(out_path) if exists else 0
+    return {
+        "ok": exists,
+        "path": out_path,
+        "exists": exists,
+        "error": None,
+        "size": size,
+        "fields": fields,
+        # Expose explicit render payload for visibility/validation
+        "render": {"sections": sections, "lines": [t for t, _ in labeled]},
+    }
+
+
+def render_invite_sections(background_path: str, sections_payload: Dict, out_path: str) -> Dict:
+    """Render ONLY composed invitation sections (no raw field labels).
+
+    sections_payload must contain keys:
+      - header_line, names_line, body_lines (list), date_line, venue_line, place_line, rsvp_line
+
+    If raw field-like keys are detected (e.g., bride_name, wedding_dates), this returns an error
+    directing the caller to compose polished copy first.
+    """
+    # Hard validation: reject raw structured keys reaching the renderer
+    raw_keys = {"bride_name", "groom_name", "wedding_dates", "wedding_place", "selected_hotel", "include_rsvp"}
+    if any(k in sections_payload for k in raw_keys):
+        return {
+            "ok": False,
+            "path": out_path,
+            "exists": False,
+            "error": "Raw invite fields provided to renderer; expected composed copy sections.",
+            "fields": {k: sections_payload.get(k) for k in sorted(list(raw_keys))},
+        }
+
+    # Extract composed text
+    header_line = str(sections_payload.get("header_line", "")).strip()
+    names_line = str(sections_payload.get("names_line", "")).strip()
+    body_lines = [str(x).strip() for x in (sections_payload.get("body_lines") or []) if str(x).strip()]
+    date_line = str(sections_payload.get("date_line", "")).strip()
+    venue_line = str(sections_payload.get("venue_line", "")).strip()
+    place_line = str(sections_payload.get("place_line", "")).strip()
+    rsvp_line = str(sections_payload.get("rsvp_line", "")).strip()
+
+    composed_payload = {
+        "header_line": header_line,
+        "names_line": names_line,
+        "body_lines": body_lines,
+        "date_line": date_line,
+        "venue_line": venue_line,
+        "place_line": place_line,
+        "rsvp_line": rsvp_line,
+    }
+
+    # Convert sections into labeled lines for typography control
+    sec: Dict[str, str] = {
+        "eyebrow": header_line,
+        "names": names_line,
+        # invitation_line comes from body_lines[0] if present; the rest are general body
+        "invitation_line": (body_lines[0] if body_lines else ""),
+        "date_line": date_line,
+        "venue_line": venue_line,
+        "place_line": place_line,
+        "rsvp_line": rsvp_line,
+    }
+    labeled = _compose_labeled_lines_from_sections(sec)
+    # Insert remaining body lines (if any) with role 'body' after the phrase
+    if body_lines and len(body_lines) > 1:
+        insert_at = 0
+        for idx, (_t, r) in enumerate(labeled):
+            if r == "phrase":
+                insert_at = idx + 1
+                break
+        extras = [(t, "body") for t in body_lines[1:]]
+        labeled[insert_at:insert_at] = extras
+
+    # Use the same drawing implementation as render_invite_text with minimal duplication
+    if Image is None:
+        return {"ok": False, "path": out_path, "exists": False, "error": "Pillow not available", "fields": {}}
+
+    try:
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    except Exception:
+        pass
+
+    try:
+        bg = Image.open(background_path).convert("RGBA")
+    except Exception as e:
+        return {"ok": False, "path": out_path, "exists": False, "error": f"background open failed: {e}", "fields": {}}
+
+    W, H = bg.size
+    overlay = Image.new("RGBA", (W, H), (255, 255, 255, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    # Typography hierarchy (names prominent, role-aware)
+    base = int(min(W, H))
+    fonts = {
+        "header": _load_font(size=max(26, int(base * 0.038)), role="header"),
+        "names": _load_font(size=max(64, int(base * 0.11)), role="names"),
+        "phrase": _load_font(size=max(34, int(base * 0.05)), role="phrase"),
+        "date": _load_font(size=max(30, int(base * 0.042)), role="body"),
+        "venue": _load_font(size=max(28, int(base * 0.04)), role="body"),
+        "place": _load_font(size=max(28, int(base * 0.04)), role="body"),
+        "rsvp": _load_font(size=max(26, int(base * 0.036)), role="rsvp"),
+        "blessing": _load_font(size=max(28, int(base * 0.04)), role="body"),
+        "body": _load_font(size=max(28, int(base * 0.04)), role="body"),
+    }
+    if any(v is None for v in [fonts["header"], fonts["names"], fonts["body"]]):
+        return {"ok": False, "path": out_path, "exists": False, "error": "Font load failed", "fields": {}}
+
+    max_text_width = int(W * 0.72)
+    wrapped_pairs = _wrap_labeled_lines(draw, labeled, max_text_width, fonts)
+
+    roles: List[str] = []
+    bboxes: List[Tuple[int, int]] = []
+    heights: List[int] = []
+    for text, role in wrapped_pairs:
+        font = fonts.get(role) or fonts.get("body")
+        bbox = draw.textbbox((0, 0), text, font=font)
+        w = bbox[2] - bbox[0]
+        h = bbox[3] - bbox[1]
+        bboxes.append((w, h))
+        heights.append(h)
+        roles.append(role)
+
+    def _gap_for(role: str) -> int:
+        if role in ("header", "eyebrow"):
+            return int(H * 0.018)
+        if role == "names":
+            return int(H * 0.032)
+        if role in ("phrase", "date"):
+            return int(H * 0.022)
+        if role in ("venue", "place"):
+            return int(H * 0.018)
+        if role == "rsvp":
+            return int(H * 0.024)
+        return int(H * 0.016)
+
+    total_h = 0
+    for i in range(len(heights)):
+        total_h += heights[i]
+        if i < len(heights) - 1:
+            total_h += _gap_for(roles[i])
+
+    # Distribute within a tall vertical band for better breathing space
+    band_top = int(H * 0.18)
+    band_bottom = int(H * 0.86)
+    band_height = max(1, band_bottom - band_top)
+    y = band_top
+    gaps = [
+        _gap_for(roles[i]) for i in range(len(heights) - 1)
+    ]
+    base_stack_h = sum(heights) + sum(gaps)
+    extra_per_gap = 0
+    if len(gaps) > 0 and base_stack_h < band_height:
+        extra = band_height - base_stack_h
+        extra_per_gap = int(extra / max(1, len(gaps)))
+    text_left = min([(W - bboxes[i][0]) // 2 for i in range(len(bboxes))]) if bboxes else W // 4
+    text_right = max([(W + bboxes[i][0]) // 2 for i in range(len(bboxes))]) if bboxes else int(W * 0.75)
+    text_top = y
+    text_bottom = y + total_h
+
+    # Apply the same subtle readability aids (with gentler parameters)
+    try:
+        shade = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        sdraw = ImageDraw.Draw(shade)
+        top_h = int(H * 0.16)
+        bot_h = int(H * 0.16)
+        if top_h > 0:
+            for i in range(top_h):
+                a = int(40 * (1.0 - (i / max(1, top_h))))
+                sdraw.line([(0, i), (W, i)], fill=(0, 0, 0, a))
+        if bot_h > 0:
+            for j in range(bot_h):
+                a = int(40 * (1.0 - (j / max(1, bot_h))))
+                yb = H - 1 - j
+                sdraw.line([(0, yb), (W, yb)], fill=(0, 0, 0, a))
+        bg = Image.alpha_composite(bg, shade)
+
+        if ImageFilter is not None and text_right > text_left and text_bottom > text_top:
+            region_lumi = _sample_region_luminance(bg, (text_left, text_top, text_right, text_bottom))
+            if 110 < region_lumi < 160:
+                blurred = bg.filter(ImageFilter.GaussianBlur(radius=max(2, int(min(W, H) * 0.005))))
+                mask = Image.new("L", (W, H), 0)
+                mdraw = ImageDraw.Draw(mask)
+                pad_x = int(W * 0.028)
+                pad_y = int(H * 0.012)
+                mdraw.rounded_rectangle(
+                    (max(0, text_left - pad_x), max(0, text_top - pad_y), min(W, text_right + pad_x), min(H, text_bottom + pad_y)),
+                    radius=max(6, int(min(W, H) * 0.012)), fill=120
+                )
+                mask = mask.filter(ImageFilter.GaussianBlur(radius=max(4, int(min(W, H) * 0.012))))
+                bg = Image.composite(blurred, bg, mask)
+    except Exception:
+        pass
+
+    lumi = _sample_region_luminance(bg, (text_left, text_top, text_right, text_bottom))
+    primary_fill = (20, 20, 20, 255) if lumi >= 150 else (235, 235, 235, 255)
+    header_fill = (10, 10, 10, 255) if lumi >= 150 else (245, 245, 245, 255)
+
+    for i, (text, role) in enumerate(wrapped_pairs):
+        font = fonts.get(role) or fonts.get("body")
+        fill = header_fill if role in ("header", "eyebrow") else primary_fill
+        w, h = bboxes[i]
+        x = (W - w) // 2
+        # Subtle text shadow for readability
+        shadow = (0, 0, 0, 70) if primary_fill[0] < 100 else (255, 255, 255, 70)
+        if role == "names" and draw.textlength(text, font=font) > int(max_text_width * 0.9) and ("&" in text):
+            # Split bride and groom onto separate centered lines for elegance
+            parts = [p.strip() for p in text.split("&", 1)]
+            gap_between = int(H * 0.012)
+            total_h_names = 0
+            for j, part in enumerate(parts):
+                bw, bh = draw.textbbox((0, 0), part, font=font)[2:4]
+                nx = (W - bw) // 2
+                draw.text((nx, y + total_h_names + 1), part, fill=shadow, font=font)
+                draw.text((nx, y + total_h_names), part, fill=fill, font=font)
+                total_h_names += bh
+                if j == 0:
+                    total_h_names += gap_between
+            # Optional thin divider under split names too
+            try:
+                line_w = max(int(W * 0.18), int(W * 0.12))
+                line_x0 = (W - line_w) // 2
+                line_y = y + total_h_names + int(H * 0.006)
+                line_color = (fill[0], fill[1], fill[2], 90)
+                draw.line([(line_x0, line_y), (line_x0 + line_w, line_y)], fill=line_color, width=max(1, int(min(W, H) * 0.002)))
+                y = line_y + int(H * 0.012)
+            except Exception:
+                y += total_h_names + _gap_for("names")
+            if i < len(wrapped_pairs) - 1:
+                y += extra_per_gap
+            continue
+        # shadow then text for all other roles
+        draw.text((x, y + 1), text, fill=shadow, font=font)
+        draw.text((x, y), text, fill=fill, font=font)
+        y += h + _gap_for(role)
+        if i < len(wrapped_pairs) - 1:
+            y += extra_per_gap
+
+    composed_img = Image.alpha_composite(bg, overlay).convert("RGB")
+    composed_img.save(out_path)
+
+    exists = os.path.exists(out_path)
+    size = os.path.getsize(out_path) if exists else 0
+    return {
+        "ok": exists,
+        "path": out_path,
+        "exists": exists,
+        "error": None,
+        "size": size,
+        "fields": {},
+        "render": {"sections": composed_payload, "lines": lines},
+    }

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import logging
 from typing import Any, Dict, List
 from datetime import datetime
 
@@ -14,17 +15,58 @@ if __package__ in (None, ""):
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.services.model_router import ModelRouter
-from app.services.styleguide_pdf import build_style_guide_pdf
+from app.services.styleguide_pdf_v2 import build_style_guide_pdf
 from app.services.storage import Storage
 from app.models.schemas import WeddingState, MediaArtifacts
 from app.prompts.artifact_prompts import (
     build_logo_prompt,
     build_invite_prompt,
     build_video_prompt,
+    build_teaser_prompt_struct,
 )
 from app.services.teaser_ending_card import render_teaser_ending_card, append_ending_card_to_video
 from app.services.maps_hotel_service import MapsHotelService
 
+
+_INVITE_COPY_LOGGED = False
+_RENDER_PAYLOAD_LOGGED = False
+
+
+def _init_logging() -> None:
+    """Configure logging to keep terminal output clean by default.
+
+    - App-level: INFO
+    - Third-party libraries (httpx/httpcore/PIL/etc.): WARNING
+    - Enable DEBUG only when WEDDING_DEBUG=1/true/yes
+    """
+    debug_env = os.environ.get("WEDDING_DEBUG", "").strip().lower() in ("1", "true", "yes")
+    level = logging.DEBUG if debug_env else logging.INFO
+
+    # Configure root logger minimally; avoid duplicate handlers
+    root = logging.getLogger()
+    root.setLevel(level)
+    if not root.handlers:
+        h = logging.StreamHandler()
+        fmt = logging.Formatter("[%(levelname)s] %(message)s")
+        h.setFormatter(fmt)
+        root.addHandler(h)
+
+    # Suppress noisy third-party loggers unless debug mode
+    noisy = [
+        "httpx",
+        "httpcore",
+        "PIL",
+        "PIL.Image",
+        "PIL.PngImagePlugin",
+        "urllib3",
+        "google",
+    ]
+    for name in noisy:
+        try:
+            logging.getLogger(name).setLevel(logging.WARNING if not debug_env else logging.DEBUG)
+            logging.getLogger(name).propagate = False
+        except Exception:
+            pass
 
 def _get_state() -> WeddingState | Any:
     """Return a structured WeddingState from memory or from data/state.json.
@@ -69,6 +111,10 @@ def _read_style_events_from_state(state: WeddingState | Any) -> List[Dict[str, A
 
 
 def main() -> None:
+    global _INVITE_COPY_LOGGED
+    global _RENDER_PAYLOAD_LOGGED
+    # Initialize clean logging first
+    _init_logging()
     # Stage 1: Interactive intake flow (default). To run full generation, set
     # env var WEDDING_RUN_GENERATION=1
     run_generation = os.environ.get("WEDDING_RUN_GENERATION", "").lower() in ("1", "true", "yes")
@@ -283,19 +329,12 @@ def main() -> None:
                     except Exception:
                         pass
 
-                # Ask logo and invite preferences
+                # Ask logo and invite preferences (visual only). Skip wording prompts for copy.
+                # Important: Do NOT ask teaser questions yet. We will ask them only AFTER
+                # the invite has been fully generated and saved.
                 intake.collect_logo_preferences(profile)
                 intake.collect_invite_preferences(profile)
-                # Invitation wording preferences for proper invitation copy
-                try:
-                    intake.collect_invite_wording_preferences(profile)
-                except Exception:
-                    pass
-                # Teaser: ask targeted preferences once
-                try:
-                    intake.collect_teaser_preferences(profile)
-                except Exception:
-                    pass
+                # Intentionally bypass invite wording questions; Gemini will compose copy.
 
                 # Creative preferences summary
                 print("\n===== Creative Preferences Summary =====")
@@ -437,35 +476,119 @@ def main() -> None:
                     print("==================================\n")
                 except Exception:
                     pass
-                # Generate logo once
+                # Generate logo once (happens before teaser questions per required flow)
                 logo_path, logo_meta = router.generate_logo_image(logo_prompt, state=None)
 
-                # Invite: Step A background only, Step B overlay grounded text
-                from app.services.invite_text_overlay import render_invite_text
+                # Invite: Step A background only, Step B overlay composed text
+                from app.services.invite_text_overlay import render_invite_sections
+                from app.services.invite_copy_service import generate_invitation_copy
                 bg_out = os.path.join("assets", "invites", "invite_background.png")
                 final_out = os.path.join("assets", "invites", "invite.png")
+
+                # Debug visibility for invite background generation (interactive flow)
+                try:
+                    requested_venue = (
+                        getattr(profile, 'selected_hotel', None)
+                        or getattr(profile, 'wedding_place', None)
+                        or getattr(profile, 'destination', None)
+                        or '-'
+                    )
+                    requested_bg = getattr(profile, 'invite_background_scene', None)
+                    # Exact-location request detection (best-effort keywords)
+                    try:
+                        scene_l = (requested_bg or "").lower()
+                        exact_requested = any(k in scene_l for k in [
+                            "atal", "bridge", "riverfront", "gateway of india", "taj mahal", "lake palace", "fort", "temple"
+                        ])
+                    except Exception:
+                        exact_requested = False
+                    if exact_requested:
+                        bg_mode = 'venue_exact_unsupported'
+                    elif getattr(profile, 'selected_hotel', None):
+                        bg_mode = 'venue_inspired'
+                    else:
+                        bg_mode = 'generic_scene'
+                    print("===== Invite Background Debug =====")
+                    print(f"Requested venue: {requested_venue}")
+                    print(f"Requested background: {requested_bg or '-'}")
+                    print(f"Generation mode: {bg_mode}")
+                    if exact_requested:
+                        print("[Note] Exact location rendering is not supported in current pipeline; using scenic/inspired fallback.")
+                    print("Final prompt (image generation):")
+                    try:
+                        import textwrap as _tw
+                        for line in _tw.wrap(invite_prompt, width=120):
+                            print(line)
+                    except Exception:
+                        print(invite_prompt)
+                    print("===================================")
+                except Exception:
+                    pass
+
                 _, bg_meta = router.generate_invite_image(invite_prompt, out_path=bg_out, state=None)
 
-                # Validation/echo of final text fields
-                print("\n===== Final Invite Text (Grounded) =====")
-                fields = {
-                    "bride_name": payload.bride_name,
-                    "groom_name": payload.groom_name,
-                    "wedding_dates": payload.wedding_dates,
-                    "wedding_place": payload.wedding_place,
-                    "selected_hotel": payload.selected_hotel if getattr(profile, 'include_venue_details', None) else None,
-                    "include_rsvp": bool(getattr(profile, 'include_rsvp', None)),
-                }
-                for k, v in fields.items():
-                    print(f"{k}: {v}")
-                print("==================================\n")
+                # Post-generation verification (non-blocking)
+                try:
+                    ver = router.verify_invite_background(
+                        image_path=bg_out,
+                        venue_name=getattr(profile, 'selected_hotel', None),
+                        place_name=(getattr(profile, 'wedding_place', None) or getattr(profile, 'destination', None)),
+                    )
+                    print("===== Invite Background Verification =====")
+                    try:
+                        import json as _json
+                        print(_json.dumps({k: v for k, v in ver.items() if not str(k).startswith('_')}, indent=2))
+                    except Exception:
+                        print(ver)
+                    if not bool(ver.get('is_match', False)):
+                        print("[WARNING] Generated image does NOT match requested venue")
+                        try:
+                            if exact_requested:
+                                print("[Info] Mismatch expected: exact-location rendering unsupported; generated scenic fallback.")
+                        except Exception:
+                            pass
+                    print("===========================================")
+                except Exception as _ver_e:
+                    print(f"[Invite-Verify] skipped due to error: {_ver_e}")
 
-                # Render overlay
-                invite_overlay = render_invite_text(
+                # Generate polished invitation copy via Gemini
+                print("\n===== Generating Invite Copy (Gemini) =====")
+                theme_hint = getattr(profile, 'invite_theme', None) or getattr(profile, 'invite_style', None)
+                copy_sections = generate_invitation_copy(
+                    profile,
+                    theme_hint=theme_hint,
+                    include_rsvp=getattr(profile, 'include_rsvp', None),
+                    include_venue_details=getattr(profile, 'include_venue_details', None),
+                    selected_hotel=getattr(profile, 'selected_hotel', None),
+                )
+                if not _INVITE_COPY_LOGGED:
+                    print("===== Final Invite Copy (Gemini) =====")
+                    try:
+                        import json as _json
+                        print(_json.dumps(copy_sections, indent=2, ensure_ascii=False))
+                    except Exception:
+                        print(copy_sections)
+                    _INVITE_COPY_LOGGED = True
+                print("[Confirm] Raw field labels not sent to renderer")
+
+                # Render overlay with composed sections only
+                invite_overlay = render_invite_sections(
                     background_path=bg_out,
-                    payload=payload.model_dump(),
+                    sections_payload=copy_sections,
                     out_path=final_out,
                 )
+                # Single clean render payload print (post-render)
+                if not _RENDER_PAYLOAD_LOGGED:
+                    print("===== Render Payload (Clean) =====")
+                    try:
+                        import json as _json
+                        print(_json.dumps(invite_overlay.get("render"), indent=2, ensure_ascii=False))
+                    except Exception:
+                        try:
+                            print(invite_overlay.get("render"))
+                        except Exception:
+                            pass
+                    _RENDER_PAYLOAD_LOGGED = True
                 invite_path = final_out if invite_overlay.get("ok") else None
                 invite_meta = {
                     "file": {"path": final_out, "exists": bool(invite_path and os.path.exists(final_out)), "size": invite_overlay.get("size", 0)},
@@ -487,11 +610,23 @@ def main() -> None:
                 # Also indicate background art path
                 print(f"[Invite-Background] path={bg_out} exists={os.path.exists(bg_out)}")
 
-                # Ceremony planning (additive): ask exactly once after logo/invite prefs
+                # Now that invite generation is complete, collect teaser preferences.
+                try:
+                    intake.collect_teaser_preferences(profile)
+                except Exception:
+                    pass
+
+                # Ceremony planning (additive): ask exactly once after logo/invite generation
                 try:
                     from app.services.ceremony_planner import CeremonyPlanner
 
-                    CeremonyPlanner().collect_ceremonies(profile)
+                    planner = CeremonyPlanner()
+                    planner.collect_ceremonies(profile)
+                    # Per-ceremony teaser visuals (asked only for teaser-included)
+                    try:
+                        planner.collect_teaser_visuals_per_ceremony(profile)
+                    except Exception:
+                        pass
                     # Persist a minimal state so later generation can use ceremonies
                     try:
                         storage = Storage()
@@ -587,7 +722,23 @@ def main() -> None:
 
     logo_prompt = build_logo_prompt(profile, creative, design_spec)
     invite_prompt = build_invite_prompt(profile, creative, design_spec)
-    video_prompt = build_video_prompt(profile, logistics, design_spec)
+    # Build structured teaser prompt (global + ceremony blocks)
+    teaser_struct = build_teaser_prompt_struct(profile, logistics, design_spec)
+    video_prompt = teaser_struct.get("final_teaser_prompt", "")
+    # Persist structured teaser prompt for downstream use
+    try:
+        media = getattr(state, "media", None)
+        if media is None:
+            media = MediaArtifacts()
+            setattr(state, "media", media)
+        setattr(media, "teaser_prompt_struct", teaser_struct)
+    except Exception:
+        pass
+    try:
+        print("[Teaser] Final prompt constructed (structured builder).")
+        print(video_prompt)
+    except Exception:
+        pass
     # Ensure media state exists and set soundtrack direction guidance
     try:
         media = getattr(state, "media", None)
@@ -609,9 +760,10 @@ def main() -> None:
     # PART 1: Images
     logo_path, logo_meta = router.generate_logo_image(logo_prompt, state=state)
 
-    # Invite: background-only generation + grounded text overlay
+    # Invite: background-only generation + composed text overlay
     from app.models.schemas import ConfirmedCreativePayload
-    from app.services.invite_text_overlay import render_invite_text
+    from app.services.invite_text_overlay import render_invite_sections
+    from app.services.invite_copy_service import generate_invitation_copy
     initials = (profile.bride_name[:1] + profile.groom_name[:1]).upper()
     payload = ConfirmedCreativePayload(
         bride_name=profile.bride_name,
@@ -642,22 +794,108 @@ def main() -> None:
     )
     bg_out = os.path.join("assets", "invites", "invite_background.png")
     final_out = os.path.join("assets", "invites", "invite.png")
-    _, bg_meta = router.generate_invite_image(invite_prompt, out_path=bg_out, state=state)
-    # Validation/echo of final text fields
-    print("\n===== Final Invite Text (Grounded) =====")
-    fields = {
-        "bride_name": payload.bride_name,
-        "groom_name": payload.groom_name,
-        "wedding_dates": payload.wedding_dates,
-        "wedding_place": payload.wedding_place,
-        "selected_hotel": payload.selected_hotel if getattr(profile, 'include_venue_details', None) else None,
-        "include_rsvp": bool(getattr(profile, 'include_rsvp', None)),
-    }
-    for k, v in fields.items():
-        print(f"{k}: {v}")
-    print("==================================\n")
 
-    invite_overlay = render_invite_text(background_path=bg_out, payload=payload.model_dump(), out_path=final_out)
+    # === Debug: Invite background generation visibility ===
+    try:
+        requested_venue = (
+            getattr(profile, 'selected_hotel', None)
+            or getattr(profile, 'wedding_place', None)
+            or getattr(profile, 'destination', None)
+            or '-'
+        )
+        # Heuristic mode classification (does not affect prompt or generation)
+        # - venue_exact_unsupported: exact landmark/location requested, but pipeline cannot guarantee exact match
+        # - venue_inspired: a specific hotel/venue name was provided by user
+        # - generic_scene: otherwise
+        requested_bg = getattr(profile, 'invite_background_scene', None)
+        try:
+            scene_l = (requested_bg or "").lower()
+            exact_requested = any(k in scene_l for k in [
+                "atal", "bridge", "riverfront", "gateway of india", "taj mahal", "lake palace", "fort", "temple"
+            ])
+        except Exception:
+            exact_requested = False
+        if exact_requested:
+            bg_mode = 'venue_exact_unsupported'
+        elif getattr(profile, 'selected_hotel', None):
+            bg_mode = 'venue_inspired'
+        else:
+            bg_mode = 'generic_scene'
+        print("===== Invite Background Debug =====")
+        print(f"Requested venue: {requested_venue}")
+        print(f"Requested background: {requested_bg or '-'}")
+        print(f"Generation mode: {bg_mode}")
+        if exact_requested:
+            print("[Note] Exact location rendering is not supported in current pipeline; using scenic/inspired fallback.")
+        print("Final prompt (image generation):")
+        try:
+            import textwrap as _tw
+            for line in _tw.wrap(invite_prompt, width=120):
+                print(line)
+        except Exception:
+            print(invite_prompt)
+        print("===================================")
+    except Exception:
+        pass
+
+    _, bg_meta = router.generate_invite_image(invite_prompt, out_path=bg_out, state=state)
+
+    # === Post-generation: Verification step (non-blocking) ===
+    try:
+        ver = router.verify_invite_background(
+            image_path=bg_out,
+            venue_name=getattr(profile, 'selected_hotel', None),
+            place_name=(getattr(profile, 'wedding_place', None) or getattr(profile, 'destination', None)),
+        )
+        print("===== Invite Background Verification =====")
+        try:
+            import json as _json
+            print(_json.dumps({k: v for k, v in ver.items() if not str(k).startswith('_')}, indent=2))
+        except Exception:
+            print(ver)
+        if not bool(ver.get('is_match', False)):
+            print("[WARNING] Generated image does NOT match requested venue")
+            try:
+                if exact_requested:
+                    print("[Info] Mismatch expected: exact-location rendering unsupported; generated scenic fallback.")
+            except Exception:
+                pass
+        print("===========================================")
+    except Exception as _ver_e:
+        print(f"[Invite-Verify] skipped due to error: {_ver_e}")
+    # Generate polished invitation copy via Gemini
+    print("\n===== Generating Invite Copy (Gemini) =====")
+    theme_hint = getattr(profile, 'invite_theme', None) or getattr(profile, 'invite_style', None)
+    copy_sections = generate_invitation_copy(
+        profile,
+        theme_hint=theme_hint,
+        include_rsvp=getattr(profile, 'include_rsvp', None),
+        include_venue_details=getattr(profile, 'include_venue_details', None),
+        selected_hotel=getattr(profile, 'selected_hotel', None),
+    )
+    if not _INVITE_COPY_LOGGED:
+        print("===== Final Invite Copy (Gemini) =====")
+        try:
+            import json as _json
+            print(_json.dumps(copy_sections, indent=2, ensure_ascii=False))
+        except Exception:
+            print(copy_sections)
+        _INVITE_COPY_LOGGED = True
+    print("[Confirm] Raw field labels not sent to renderer")
+
+    invite_overlay = render_invite_sections(background_path=bg_out, sections_payload=copy_sections, out_path=final_out)
+    # Single clean render payload print (post-render)
+    if not _RENDER_PAYLOAD_LOGGED:
+        print("===== Render Payload (Clean) =====")
+        try:
+            import json as _json
+            print(_json.dumps(invite_overlay.get("render"), indent=2, ensure_ascii=False))
+        except Exception:
+            try:
+                print(invite_overlay.get("render"))
+            except Exception:
+                pass
+        _RENDER_PAYLOAD_LOGGED = True
     invite_path = final_out if invite_overlay.get("ok") else None
     invite_meta = {
         "file": {"path": final_out, "exists": bool(invite_path and os.path.exists(final_out)), "size": invite_overlay.get("size", 0)},
@@ -710,6 +948,16 @@ def main() -> None:
         return f"[Video] status=error error={err}"
 
     print(_video_summary(video_meta))
+    try:
+        logs = (video_meta or {}).get("logs", {}) or {}
+        audio_used = logs.get("audio_kwargs_used")
+        if not audio_used:
+            print("[Teaser] Music preference captured, but audio embedding is not supported in the current generation path.")
+        else:
+            print(f"[Teaser] Audio kwargs used by SDK: {audio_used}")
+        print(f"[Teaser] saved_path={(video_meta or {}).get('file', {}).get('path')}")
+    except Exception:
+        pass
 
     # Ending card: render from structured profile and attempt to append programmatically
     try:

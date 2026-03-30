@@ -1,10 +1,11 @@
 import os
 import base64
-from typing import Any, Optional, Tuple, List
+from typing import Any, Optional, Tuple, List, Dict
 
 # Keep prints minimal here; return rich logs for callers to summarize once.
 
 from .media_generator import MediaGenerator
+from app.config import DEFAULT_GEMINI_TEXT_MODEL
 
 
 class ModelRouter:
@@ -163,6 +164,133 @@ class ModelRouter:
                 details={"model": logs.get("model"), "parts_present": logs.get("parts_present"), "part_count": logs.get("part_count"), "error": logs.get("error")},
             )
         return (saved_path if exists else None, {"file": {"path": out_path, "exists": exists, "size": os.path.getsize(out_path) if exists else 0}, "logs": logs})
+
+    def verify_invite_background(
+        self,
+        image_path: str,
+        venue_name: Optional[str] = None,
+        place_name: Optional[str] = None,
+        timeout_seconds: float = 20.0,
+    ) -> Dict[str, Any]:
+        """Use the LLM to check if an image matches the requested venue.
+
+        Returns a JSON-like dict with keys: is_match (bool), confidence (float), reason (str).
+        Non-fatal: on any error, returns a best-effort dict with is_match=False and reason.
+        """
+        result: Dict[str, Any] = {"is_match": False, "confidence": 0.0, "reason": "uninitialized"}
+        try:
+            client = getattr(self.generator, "_client", None)
+            if client is None or not hasattr(client, "models") or not hasattr(client.models, "generate_content"):
+                return {"is_match": False, "confidence": 0.0, "reason": "verification_unavailable:no_client"}
+
+            if not (image_path and os.path.exists(image_path)):
+                return {"is_match": False, "confidence": 0.0, "reason": "verification_unavailable:no_image"}
+
+            # Read image bytes and guess mime
+            try:
+                with open(image_path, "rb") as f:
+                    data = f.read()
+            except Exception as e:
+                return {"is_match": False, "confidence": 0.0, "reason": f"read_error:{e}"}
+
+            lower = image_path.lower()
+            mime = "image/png"
+            if lower.endswith(".jpg") or lower.endswith(".jpeg"):
+                mime = "image/jpeg"
+            elif lower.endswith(".webp"):
+                mime = "image/webp"
+
+            venue = (venue_name or "").strip()
+            place = (place_name or "").strip()
+
+            check_target = venue if venue else place
+            if not check_target:
+                # No explicit venue/place to check against
+                return {"is_match": False, "confidence": 0.0, "reason": "no_requested_venue_or_place"}
+
+            instruction = (
+                "You are verifying if an image matches a requested wedding venue/location.\n"
+                "Given the attached image and the requested venue/location, respond ONLY with a strict JSON object:\n"
+                "{\n  \"is_match\": true|false,\n  \"confidence\": <float 0..1>,\n  \"reason\": \"<under 2 sentences>\"\n}\n"
+                "Rules:\n- Be conservative; if unsure, set is_match=false.\n"
+                "- confidence is your probability judgment in [0,1].\n"
+                "- reason should briefly mention visual cues vs the requested venue.\n\n"
+                f"Requested venue/location: {check_target}\n"
+            )
+
+            contents = [
+                {
+                    "role": "user",
+                    "parts": [
+                        {"text": instruction},
+                        {"inline_data": {"mime_type": mime, "data": data}},
+                    ],
+                }
+            ]
+
+            # Use the default fast text model for structured judgments
+            model = DEFAULT_GEMINI_TEXT_MODEL
+
+            # Run with a simple timeout mechanism
+            import time as _t
+            start = _t.time()
+            resp = client.models.generate_content(model=model, contents=contents)
+            elapsed = _t.time() - start
+
+            text = getattr(resp, "text", None)
+            if not text:
+                text = str(resp)
+
+            # Attempt to extract strict JSON
+            import json as _json
+            raw = text.strip()
+            # Strip code fences if present
+            if raw.startswith("```"):
+                try:
+                    raw = raw.split("\n", 1)[1]
+                    if raw.endswith("```"):
+                        raw = raw.rsplit("```", 1)[0]
+                except Exception:
+                    pass
+            parsed: Dict[str, Any]
+            try:
+                parsed = _json.loads(raw)
+            except Exception:
+                # Best effort: look for JSON substring
+                import re as _re
+                m = _re.search(r"\{[\s\S]*\}", raw)
+                if m:
+                    try:
+                        parsed = _json.loads(m.group(0))
+                    except Exception:
+                        parsed = {"is_match": False, "confidence": 0.0, "reason": "parse_failed"}
+                else:
+                    parsed = {"is_match": False, "confidence": 0.0, "reason": "parse_failed"}
+
+            # Normalize types
+            parsed_flag = bool(parsed.get("is_match", False))
+            try:
+                confidence = float(parsed.get("confidence", 0.0))
+            except Exception:
+                confidence = 0.0
+            reason = str(parsed.get("reason", "")).strip() or ""
+            if confidence < 0:
+                confidence = 0.0
+            if confidence > 1:
+                confidence = 1.0
+
+            # Enforce consistent verification logic
+            is_match = True if confidence > 0.7 else False
+            try:
+                assert not (is_match is False and confidence > 0.9)
+            except AssertionError:
+                # If inconsistency somehow occurs, prefer the threshold-based outcome
+                is_match = True
+
+            result = {"is_match": is_match, "confidence": confidence, "reason": reason, "_latency_sec": round(elapsed, 2)}
+            return result
+        except Exception as e:
+            return {"is_match": False, "confidence": 0.0, "reason": f"verify_error:{e}"}
 
     # PART 2: Video (Veo 3.1, google-genai models.generate_videos flow)
     def generate_teaser_video(

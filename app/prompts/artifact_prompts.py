@@ -159,6 +159,12 @@ def build_invite_prompt(
         "Do NOT include any readable text: no names, no dates, no venue, no RSVP. ",
         "Leave clear, aesthetically balanced negative space for text blocks (title, details, RSVP). ",
     ]
+    # Override to enforce scenic full-background, no template/card layout
+    parts = [
+        "Create ONE full-bleed scenic/artistic background image. ",
+        "Depict a complete scene based solely on the requested theme/scene; cover the entire frame. ",
+        "Do NOT include any text, frames, borders, arches used as frames, central blank panels, templates, or reserved text areas. ",
+    ]
     if base_dir:
         parts.append(f"Art direction: {base_dir}. ")
     if theme_name:
@@ -181,24 +187,19 @@ def build_invite_prompt(
             parts.append(f"Mood: {profile.invite_mood}. ")
         if getattr(profile, "invite_floral_style", None):
             parts.append(f"Floral elements: {profile.invite_floral_style}. ")
-        if getattr(profile, "invite_frame_style", None):
-            parts.append(f"Framing: {profile.invite_frame_style}. ")
-        if getattr(profile, "invite_layout_type", None):
-            parts.append(f"Layout type: {profile.invite_layout_type}. ")
+        # Ignore frame/layout to avoid template-like compositions
         if getattr(profile, "invite_vibe", None):
-            parts.append(f"Format/vibe: {profile.invite_vibe}. ")
+            parts.append(f"Overall vibe: {profile.invite_vibe}. ")
     except Exception:
         pass
-    if typography:
-        parts.append(f"Typography direction (for spacing reference only): {typography}. ")
     if motifs:
-        parts.append(f"Motifs: {motifs}. ")
+        parts.append(f"Motifs (as natural scene details, not frames): {motifs}. ")
     if palette_names or palette_hex:
         parts.append(f"Palette: {palette_names} ({palette_hex}). ")
     if dest_story:
         parts.append(f"Destination cues: {dest_story}. ")
     parts.append(
-        "Premium paper texture and subtle finishing; polished editorial render; ONE final background only."
+        "Compose as a cohesive, immersive scene with premium, cinematic lighting and refined color treatment."
     )
     return "".join(parts)
     bride = (profile.bride_name or "").strip()
@@ -364,7 +365,16 @@ def build_video_prompt(
     logistics_plan: LogisticsPlan | None,
     design_spec: DesignDirectionSpec | None,
 ) -> str:
-    """Build a stronger Veo prompt for a cinematic wedding teaser with explicit native audio."""
+    """Deprecated wrapper: now delegates to build_teaser_prompt_struct and returns final prompt.
+
+    Kept for backward compatibility with callers that expect a single prompt string.
+    """
+    try:
+        struct = build_teaser_prompt_struct(profile, logistics_plan, design_spec)
+        return struct.get("final_teaser_prompt", "")
+    except Exception:
+        # Fallback to legacy prompt if struct builder fails; retain original behavior below
+        pass
     bride = (profile.bride_name or "").strip()
     groom = (profile.groom_name or "").strip()
     couple = f"{bride} & {groom}"
@@ -618,51 +628,261 @@ def build_moodboard_prompt(
     design_spec: DesignDirectionSpec | None,
     logistics_plan: LogisticsPlan | None,
     event_name: str,
+    ceremony: Any | None = None,
 ) -> str:
-    """Build a single, vertically composed fashion moodboard prompt for an event.
+    """Deprecated wrapper: now delegates to build_styleguide_image_prompt_struct and returns image_prompt.
 
-    Requirements to enforce:
-    - one fashion moodboard page
-    - editorial wedding styling collage
-    - guest looks and couple looks
-    - accessories / shoes / jewelry
-    - palette-coordinated visuals
-    - premium magazine-like styling
-    - no plain text poster
-    - no generic catalog grid
+    Kept for backward compatibility with callers that expect a single prompt string.
     """
-    bride = (profile.bride_name or "").strip()
-    groom = (profile.groom_name or "").strip()
-    couple = f"{bride} & {groom}".strip()
-    destination = (profile.destination or "").strip()
-    dates = ", ".join([d for d in (profile.wedding_dates or []) if d])
+    try:
+        struct = build_styleguide_image_prompt_struct(
+            profile=profile, design_spec=design_spec, ceremony=ceremony, event_name=event_name
+        )
+        return struct.get("image_prompt", "")
+    except Exception:
+        # Fallback to legacy minimal prompt if struct builder fails
+        bride = (profile.bride_name or "").strip()
+        groom = (profile.groom_name or "").strip()
+        couple = f"{bride} & {groom}".strip()
+        destination = (getattr(profile, "wedding_place", None) or profile.destination or "").strip()
+        pal = ", ".join(list(getattr(ceremony or {}, "palette", []) or [])) if ceremony is not None else ""
+        return (
+            f"Create ONE vertically composed fashion moodboard for '{event_name}'. Couple: {couple}. Location: {destination}. "
+            f"Palette: {pal}. Editorial collage with couple + guest looks; accessories; avoid text overlays."
+        )
 
-    theme = (getattr(creative_plan, "theme_name", "") or "").strip() if creative_plan is not None else ""
-    mood = _safe_join(getattr(design_spec, "mood_keywords", []) if design_spec is not None else [])
-    palette_names = _safe_join(getattr(design_spec, "palette_names", []) if design_spec is not None else [])
-    palette_hex = _safe_join(getattr(design_spec, "palette_hex", []) if design_spec is not None else [])
-    wardrobe = (getattr(design_spec, "wardrobe_art_direction", "") or "").strip() if design_spec is not None else ""
-    dest_story = (getattr(design_spec, "destination_story", "") or "").strip() if design_spec is not None else ""
 
-    parts = [
-        f"Create ONE vertically composed fashion moodboard page for '{event_name}'. ",
-        f"Couple: {couple}. Destination: {destination}. Dates: {dates}. ",
+# =====================
+# New structured builders
+# =====================
+
+def _compact_list(vals: list[str] | None) -> str:
+    return ", ".join([v for v in (vals or []) if str(v).strip()])
+
+
+def _missing_critical(fields: dict[str, str]) -> list[str]:
+    # Guest-wardrobe planner: track only scene-driving fields
+    critical = ("backdrop", "styling_mode", "highlights")
+    return [k for k in critical if not (fields.get(k) or "").strip()]
+
+
+def build_styleguide_image_prompt_struct(
+    profile: WeddingProfile,
+    design_spec: DesignDirectionSpec | None,
+    ceremony: Any,
+    event_name: str | None = None,
+) -> Dict[str, Any]:
+    """Build a guest-wardrobe editorial image prompt per ceremony.
+
+    Redefines the product as a Guest Wardrobe Planner page:
+    - event-wise guest fashion board (men + women)
+    - palette-forward, accessory/footwear/texture direction
+    - strictly no bride/groom portraits or couple-led boards
+    """
+    # RAG: Global context relevant to guests
+    place = (getattr(profile, "wedding_place", None) or getattr(profile, "destination", "") or "").strip()
+    hotel = (getattr(profile, "selected_hotel", None) or "").strip()
+
+    # RAG: Ceremony-focused fields for guest guidance
+    cer_name = (getattr(ceremony, "name", None) or event_name or "Ceremony").strip()
+    day = (getattr(ceremony, "event_date", "") or "").strip()
+    time = (getattr(ceremony, "time_of_day", "") or "").strip()
+    mood = (getattr(ceremony, "mood", "") or "").strip()
+    pal_list = list(getattr(ceremony, "palette", []) or [])
+    pal_tokens = [p for p in pal_list if p]
+    dress_code = (getattr(ceremony, "dress_code", "") or "").strip()
+    guest_note = (getattr(ceremony, "guest_note", "") or "").strip()
+    styling_mode = (getattr(ceremony, "teaser_styling_mode", "") or getattr(ceremony, "styling_mode", "") or "").strip()
+    backdrop = (getattr(ceremony, "teaser_backdrop", "") or getattr(ceremony, "backdrop", "") or "").strip()
+
+    # Build the guest-wardrobe editorial prompt
+    context_lines = [
+        f"- Event: {cer_name}",
+        f"- Destination: {place}",
+        f"- Venue vibe: {hotel}",
+        f"- Day/time: {day}, {time}",
+        f"- Event mood/theme: {mood}",
+        f"- Suggested color palette: {', '.join(pal_tokens)}",
+        f"- Guest dress code: {dress_code}",
+        f"- Guest notes: {guest_note}",
+        f"- Styling direction: {styling_mode}",
+        f"- Backdrop vibe: {backdrop}",
     ]
-    if theme:
-        parts.append(f"Theme: {theme}. ")
-    if wardrobe:
-        parts.append(f"Wardrobe direction: {wardrobe}. ")
-    if mood:
-        parts.append(f"Mood: {mood}. ")
-    if palette_names or palette_hex:
-        parts.append(f"Palette: {palette_names} ({palette_hex}). ")
-    if dest_story:
-        parts.append(f"Destination cues: {dest_story}. ")
 
-    parts.extend([
-        "Editorial wedding styling collage with premium magazine-like art direction. ",
-        "Show guest looks and couple looks, include accessories/shoes/jewelry, palette-coordinated visuals. ",
-        "Avoid plain text posters, avoid generic catalog grids, avoid multiple separate pages. ",
-        "Deliver one cohesive vertical moodboard image with refined composition.",
-    ])
-    return "".join(parts)
+    system = (
+        "You are a luxury destination-wedding guest wardrobe stylist and editorial fashion art director."
+    )
+
+    template = (
+        "Role:\n" + system +
+        "\n\nObjective:\n" + f"Create one elegant guest wardrobe planner board for the {cer_name} event of a wedding in {place}.\n" +
+        "\nImportant:\nThis is NOT a bride-and-groom moodboard. This is a guest-facing fashion board showing what attendees should wear.\n" +
+        "\nCeremony Context:\n" + "\n".join(context_lines) + "\n" +
+        (f"- Climate/context: {getattr(profile, 'destination_climate', '')}\n" if getattr(profile, 'destination_climate', None) else "") +
+        "\nVisual Goals:\n"
+        "- create a premium editorial guest style board\n"
+        "- feature guest fashion inspiration only\n"
+        "- include mens and womens guestwear\n"
+        "- include accessories, footwear, textures, and silhouettes that match the event\n"
+        "- show the ceremony palette clearly\n"
+        "- reflect the event mood and time of day\n"
+        "- polished, luxurious, wedding-guest appropriate styling\n"
+        "- curated collage layout suitable for a wardrobe guide PDF page\n"
+        "\nDo NOT include:\n"
+        "- bride portraits\n- groom portraits\n- couple portraits\n- phera scenes\n- mandap rituals\n- wedding ceremony documentary shots\n- text overlays\n- generic fashion catalog feel\n- repeated outfit clones\n"
+        "\nPreferred aesthetic:\n"
+        "similar in spirit to a premium destination wedding guest wardrobe guide: soft editorial background, elegant arrangement, outfit-led collage, color swatches, accessories, cohesive event styling.\n"
+    )
+
+    # RAG logs (guest-focused)
+    try:
+        print(
+            f"[RAG] Guest style context selected for ceremony '{cer_name}': mood='{mood}', palette='{_compact_list(pal_tokens)}', dress='{dress_code}', venue='{hotel}', place='{place}', time='{day} {time}', notes='{guest_note}'"
+        )
+        print(f"[PromptBuilder] Guest wardrobe prompt built for ceremony '{cer_name}'")
+    except Exception:
+        pass
+
+    styling_summary = ", ".join([v for v in [mood, styling_mode, dress_code] if v])
+    backdrop_summary = backdrop or place or hotel
+    rag_global = {"place": place, "hotel": hotel}
+    rag_cer = {
+        "ceremony": cer_name,
+        "day_time": ", ".join([x for x in [day, time] if x]),
+        "mood": mood,
+        "palette": pal_tokens,
+        "dress_code": dress_code,
+        "guest_note": guest_note,
+        "styling_mode": styling_mode,
+        "backdrop": backdrop,
+    }
+    return {
+        "ceremony_name": cer_name,
+        "image_prompt": template,
+        "palette_tokens": pal_tokens,
+        "styling_summary": styling_summary,
+        "backdrop_summary": backdrop_summary,
+        "rag": {"global": rag_global, "ceremony": rag_cer},
+        "missing_critical": _missing_critical({"backdrop": backdrop, "styling_mode": styling_mode, "highlights": getattr(ceremony, 'teaser_highlights', '') or getattr(ceremony, 'highlights', '')}),
+    }
+
+
+def build_teaser_prompt_struct(
+    profile: WeddingProfile,
+    logistics_plan: LogisticsPlan | None,
+    design_spec: DesignDirectionSpec | None,
+) -> Dict[str, Any]:
+    """Build a stronger, cinematic teaser prompt using ceremony-specific blocks."""
+    bride = (getattr(profile, "bride_name", "") or "").strip()
+    groom = (getattr(profile, "groom_name", "") or "").strip()
+    couple = f"{bride} & {groom}".strip(" &")
+    place = (getattr(profile, "wedding_place", None) or getattr(profile, "destination", "") or "").strip()
+    hotel = (getattr(profile, "selected_hotel", None) or "").strip()
+    dates = ", ".join([d for d in (getattr(profile, "wedding_dates", []) or []) if d])
+
+    # Teaser settings
+    teaser_type = (getattr(profile, "teaser_type", "") or "").strip()
+    teaser_style = (getattr(profile, "teaser_style", "") or "").strip()
+    pacing = (getattr(profile, "teaser_pacing", "") or "").strip()
+    feel = (getattr(profile, "teaser_feel", "") or "").strip()
+    ending_style = (getattr(profile, "teaser_ending_text_style", "") or "").strip()
+    name_reveal_mode = (getattr(profile, "teaser_names_timing", "") or "").strip()
+    music_pref = (getattr(profile, "teaser_music_vibe", "") or "").strip()
+    music_mode = (getattr(profile, "teaser_music_mode", "") or "").strip()  # optional field
+
+    # Ceremony selection for teaser
+    ceremonies = list(getattr(profile, "ceremonies", []) or [])
+    inc = [c for c in ceremonies if getattr(c, "include_in_teaser", True)]
+
+    # Build ceremony blocks (cinematic with lighting/lensing/movement)
+    blocks: list[str] = []
+    missing_any: list[dict] = []
+    for c in inc:
+        name = getattr(c, "name", "Ceremony")
+        day_time = ", ".join([x for x in [getattr(c, "event_date", ""), getattr(c, "time_of_day", "")] if x])
+        mood = getattr(c, "mood", "")
+        palette = ", ".join(getattr(c, "palette", []) or [])
+        bride_outfit = (getattr(c, "teaser_bride_outfit", "") or getattr(c, "bride_outfit", ""))
+        groom_outfit = (getattr(c, "teaser_groom_outfit", "") or getattr(c, "groom_outfit", ""))
+        styling_mode = (getattr(c, "teaser_styling_mode", "") or getattr(c, "styling_mode", ""))
+        backdrop = (getattr(c, "teaser_backdrop", "") or getattr(c, "backdrop", ""))
+        highlights = (getattr(c, "teaser_highlights", "") or getattr(c, "highlights", ""))
+        appearance_refs = (getattr(c, "teaser_couple_appearance_refs", "") or getattr(c, "appearance_refs", ""))
+        beauty_vibe = (getattr(c, "teaser_jewelry_hair_makeup", "") or getattr(c, "beauty_vibe", ""))
+
+        block = (
+            f"Ceremony: {name}\n"
+            f"- time of day: {day_time}\n"
+            f"- visual mood: {mood}; palette: {palette}\n"
+            f"- outfit styling: bride: {bride_outfit}; groom: {groom_outfit}; guests reflect {styling_mode}\n"
+            f"- backdrop: {backdrop}\n"
+            f"- detail shots: jewelry, fabric textures, floral elements, hands, entrances, ritual objects as applicable\n"
+            f"- key beats: {highlights}\n"
+            f"- camera/movement: premium cinematic; mix of slow dolly, delicate handheld; intentional negative space\n"
+            f"- lighting: specify golden hour/daylight/candlelit per time; soft contrast, natural falloff\n"
+            f"- lensing: 35mm–85mm prime feel; shallow depth for intimate moments; wider lens for venue reveals\n"
+        )
+        blocks.append(block)
+        # Check missing critical ceremony fields for possible follow-up
+        cer_missing = [
+            f for f, v in {
+                "bride_outfit": bride_outfit,
+                "groom_outfit": groom_outfit,
+                "backdrop": backdrop,
+                "styling_mode": styling_mode,
+                "highlights": highlights,
+            }.items() if not (v or "").strip()
+        ]
+        if cer_missing:
+            missing_any.append({"ceremony": name, "missing": cer_missing})
+        try:
+            print(f"[PromptBuilder] Teaser ceremony block built for '{name}'")
+        except Exception:
+            pass
+
+    # RAG logs
+    try:
+        print(
+            f"[RAG] Teaser global context selected: couple='{couple}', place='{place}', hotel='{hotel}', dates='{dates}', style='{teaser_style}', pacing='{pacing}', feel='{feel}', type='{teaser_type}', ending='{ending_style}', music='{music_pref}', mode='{music_mode}'"
+        )
+        print(f"[RAG] Teaser ceremony blocks selected: {len(blocks)}")
+    except Exception:
+        pass
+
+    # Compose refined TEASER_PROMPT with stronger direction
+    formatted_blocks = "\n\n".join(blocks) if blocks else "(no ceremonies)"
+    final_prompt = (
+        "Role:\nYou are a luxury wedding film director creating a cinematic destination wedding teaser.\n"
+        "\nGoal:\nCreate a visually rich teaser grounded in the actual event styling and venue context.\n"
+        "\nGlobal Direction:\n"
+        f"- Couple: {couple}\n"
+        f"- Place: {place}\n"
+        f"- Venue: {hotel}\n"
+        f"- Wedding dates: {dates}\n"
+        f"- Style: {teaser_style}\n"
+        f"- Pacing: {pacing}\n"
+        f"- Feel: {feel}\n"
+        f"- Teaser type: {teaser_type}\n"
+        f"- Ending style: {ending_style}\n"
+        f"- Music mood: {music_pref}\n"
+        "\nScene Design Rules:\n"
+        "- use visually distinct treatment per ceremony\n"
+        "- reflect real outfit/styling inputs\n"
+        "- reflect venue-specific atmosphere\n"
+        "- make camera movement and scene design feel premium and cinematic\n"
+        "- avoid generic filler shots\n"
+        "- create emotional progression\n"
+        "\nCeremony Blocks:\n" + formatted_blocks +
+        "\n\nEnding:\nRefined final title reveal consistent with the requested ending style.\n"
+    )
+    try:
+        print(f"[PromptBuilder] Final teaser prompt length: {len(final_prompt)}")
+    except Exception:
+        pass
+
+    return {
+        "global_prompt": global_prompt,
+        "ceremony_blocks": blocks,
+        "final_teaser_prompt": final_prompt,
+        "missing_critical": missing_any,
+    }

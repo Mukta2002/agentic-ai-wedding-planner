@@ -137,6 +137,66 @@ class CeremonyPlanner:
             # Keep resilient: do not crash overall flow
             print(f"Ceremony planning skipped due to an error: {e}")
 
+    def collect_teaser_visuals_per_ceremony(self, profile: WeddingProfile) -> None:
+        """Ask detailed teaser visuals per ceremony included in teaser.
+
+        Keeps questions ceremony-specific for outfits, styling, backdrop, highlights, and appearance refs.
+        """
+        items = list(getattr(profile, "ceremonies", []) or [])
+        if not items:
+            return
+        print("\n===== Teaser Visuals Per Ceremony =====")
+        for c in items:
+            try:
+                if not getattr(c, "include_in_teaser", True):
+                    continue
+                print(f"-- {getattr(c, 'name', 'Ceremony')} --")
+                if getattr(c, "teaser_bride_outfit", None) is None:
+                    val = input(
+                        f"For {c.name}, bride outfit (lehenga / saree / gown / indo-western / modern silhouette / custom): "
+                    ).strip()
+                    if val:
+                        c.teaser_bride_outfit = val
+                if getattr(c, "teaser_groom_outfit", None) is None:
+                    val = input(
+                        f"For {c.name}, groom outfit (sherwani / tuxedo / bandhagala / kurta set / modern formal / custom): "
+                    ).strip()
+                    if val:
+                        c.teaser_groom_outfit = val
+                if getattr(c, "teaser_styling_mode", None) is None:
+                    val = input(
+                        f"Styling mode for {c.name} (traditional Indian / fusion / modern luxury / festive / editorial): "
+                    ).strip()
+                    if val:
+                        c.teaser_styling_mode = val
+                if getattr(c, "teaser_backdrop", None) is None:
+                    val = input(
+                        f"Backdrop for {c.name} (actual venue / floral setup / palace / riverside / beach / mandap / ballroom / sunset / custom): "
+                    ).strip()
+                    if val:
+                        c.teaser_backdrop = val
+                if getattr(c, "teaser_highlights", None) is None:
+                    val = input(
+                        f"What to highlight visually for {c.name} (dance / entry / couple portraits / rituals / details / family moments / decor / custom): "
+                    ).strip()
+                    if val:
+                        c.teaser_highlights = val
+                if getattr(c, "teaser_couple_appearance_refs", None) is None:
+                    val = input(
+                        f"Any appearance references for the couple in {c.name} (optional): "
+                    ).strip()
+                    if val:
+                        c.teaser_couple_appearance_refs = val
+                if getattr(c, "teaser_jewelry_hair_makeup", None) is None:
+                    val = input(
+                        f"Jewelry / hair / makeup vibe for {c.name} (optional): "
+                    ).strip()
+                    if val:
+                        c.teaser_jewelry_hair_makeup = val
+            except Exception:
+                # Continue to next ceremony on any input issue
+                pass
+
     def print_summary(self, profile: WeddingProfile) -> None:
         items = list(getattr(profile, "ceremonies", []) or [])
         print("\n===== Ceremony Plan Summary =====")
@@ -154,4 +214,3 @@ class CeremonyPlanner:
             if getattr(c, "guest_note", None):
                 print(f"    note: {c.guest_note}")
         print("==================================\n")
-

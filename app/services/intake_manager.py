@@ -304,65 +304,48 @@ class IntakeManager:
             pass
 
     def collect_teaser_preferences(self, profile: WeddingProfile) -> None:
-        """Ask a short sequence of teaser-specific preferences and store them once.
-
-        Questions cover style, pacing, music, feel, must-show moments, name timing, and ending text style.
-        """
+        """Ask only global teaser direction. Ceremony visuals are asked later per-ceremony."""
         try:
-            # Avoid re-asking within the same run if any teaser fields already exist
-            if any(
-                getattr(profile, k, None)
-                for k in (
-                    "teaser_style",
-                    "teaser_pacing",
-                    "teaser_music_vibe",
-                    "teaser_feel",
-                    "teaser_must_show",
-                    "teaser_names_timing",
-                    "teaser_ending_text_style",
-                )
-            ):
-                print("\n===== Teaser Preferences =====\nUsing previously provided values.")
-                return
+            print("\n===== Teaser Preferences (Global) =====")
+            if not getattr(profile, "teaser_style", None):
+                style = input(
+                    "Overall teaser style (royal / elegant / cinematic / editorial / modern subtle / traditional luxe): "
+                ).strip()
+                if style:
+                    profile.teaser_style = style
 
-            print("\n===== Teaser Preferences =====")
-            style = input(
-                "Teaser style (royal / elegant / cinematic / editorial / modern subtle / traditional luxe): "
-            ).strip()
-            if style:
-                profile.teaser_style = style
+            if not getattr(profile, "teaser_pacing", None):
+                pacing = input("Preferred pacing (slow dreamy / balanced / energetic): ").strip()
+                if pacing:
+                    profile.teaser_pacing = pacing
 
-            pacing = input("Preferred pacing (slow dreamy / balanced / energetic): ").strip()
-            if pacing:
-                profile.teaser_pacing = pacing
+            if not getattr(profile, "teaser_music_vibe", None):
+                mv = input("Music vibe (orchestral / soft instrumental / celebratory / regal): ").strip()
+                if mv:
+                    profile.teaser_music_vibe = mv
 
-            music = input(
-                "Preferred music vibe (orchestral / soft instrumental / celebratory / regal): "
-            ).strip()
-            if music:
-                profile.teaser_music_vibe = music
+            if not getattr(profile, "teaser_feel", None):
+                feel = input("Overall feel (palace-luxury / intimate-romantic / fashion-forward): ").strip()
+                if feel:
+                    profile.teaser_feel = feel
 
-            feel = input(
-                "Overall feel (palace-luxury / intimate-romantic / fashion-forward): "
-            ).strip()
-            if feel:
-                profile.teaser_feel = feel
+            if not getattr(profile, "teaser_names_timing", None):
+                names_timing = input(
+                    "Show names/dates only at end, or also earlier? (end-only / throughout / early reveal): "
+                ).strip()
+                if names_timing:
+                    profile.teaser_names_timing = names_timing
 
-            must = input("Any must-show ceremonies or moments? (short list or description): ").strip()
-            if must:
-                profile.teaser_must_show = must
+            if not getattr(profile, "teaser_ending_text_style", None):
+                ending = input(
+                    "Preferred ending text style (minimal elegant / grand royal / cinematic title card): "
+                ).strip()
+                if ending:
+                    profile.teaser_ending_text_style = ending
 
-            names_timing = input(
-                "Show bride/groom names and dates only at the end, or also earlier? (end-only / throughout / early reveal): "
-            ).strip()
-            if names_timing:
-                profile.teaser_names_timing = names_timing
-
-            ending = input(
-                "Preferred ending text style (minimal elegant / grand royal / cinematic title card): "
-            ).strip()
-            if ending:
-                profile.teaser_ending_text_style = ending
+            if not getattr(profile, "teaser_type", None):
+                tty = input("Teaser type (save-the-date / event teaser / cinematic wedding trailer): ").strip()
+                if tty:
+                    profile.teaser_type = tty
         except Exception:
-            # Non-fatal: continue with defaults if input fails
             pass

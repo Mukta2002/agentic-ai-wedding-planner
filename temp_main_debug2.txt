@@ -1,0 +1,72 @@
+        invite_palette=getattr(profile, 'invite_palette', None),
+        invite_mood=getattr(profile, 'invite_mood', None),
+        invite_floral_style=getattr(profile, 'invite_floral_style', None),
+        invite_frame_style=getattr(profile, 'invite_frame_style', None),
+        invite_layout_type=getattr(profile, 'invite_layout_type', None),
+        include_rsvp=getattr(profile, 'include_rsvp', None),
+        include_venue_details=getattr(profile, 'include_venue_details', None),
+    )
+    bg_out = os.path.join("assets", "invites", "invite_background.png")
+    final_out = os.path.join("assets", "invites", "invite.png")
+
+    # === Debug: Invite background generation visibility ===
+    try:
+        requested_venue = (
+            getattr(profile, 'selected_hotel', None)
+            or getattr(profile, 'wedding_place', None)
+            or getattr(profile, 'destination', None)
+            or '-'
+        )
+        # Heuristic mode classification (does not affect prompt or generation)
+        # - venue_exact: reserved for future explicit exact-venue rendering
+        # - venue_inspired: a specific hotel/venue name was provided by user
+        # - generic_scene: otherwise
+        if getattr(profile, 'selected_hotel', None):
+            bg_mode = 'venue_inspired'
+        else:
+            bg_mode = 'generic_scene'
+        print("===== Invite Background Debug =====")
+        print(f"Requested venue: {requested_venue}")
+        print(f"Generation mode: {bg_mode}")
+        print("Final prompt (image generation):")
+        try:
+            import textwrap as _tw
+            for line in _tw.wrap(invite_prompt, width=120):
+                print(line)
+        except Exception:
+            print(invite_prompt)
+        print("===================================")
+    except Exception:
+        pass
+
+    _, bg_meta = router.generate_invite_image(invite_prompt, out_path=bg_out, state=state)
+
+    # === Post-generation: Verification step (non-blocking) ===
+    try:
+        ver = router.verify_invite_background(
+            image_path=bg_out,
+            venue_name=getattr(profile, 'selected_hotel', None),
+            place_name=(getattr(profile, 'wedding_place', None) or getattr(profile, 'destination', None)),
+        )
+        print("===== Invite Background Verification =====")
+        try:
+            import json as _json
+            print(_json.dumps({k: v for k, v in ver.items() if not str(k).startswith('_')}, indent=2))
+        except Exception:
+            print(ver)
+        if not bool(ver.get('is_match', False)):
+            print("[WARNING] Generated image does NOT match requested venue")
+        print("===========================================")
+    except Exception as _ver_e:
+        print(f"[Invite-Verify] skipped due to error: {_ver_e}")
+    # Generate polished invitation copy via Gemini
+    print("\n===== Generating Invite Copy (Gemini) =====")
+    theme_hint = getattr(profile, 'invite_theme', None) or getattr(profile, 'invite_style', None)
+    copy_sections = generate_invitation_copy(
+        profile,
+        theme_hint=theme_hint,
+        include_rsvp=getattr(profile, 'include_rsvp', None),
+        include_venue_details=getattr(profile, 'include_venue_details', None),
+        selected_hotel=getattr(profile, 'selected_hotel', None),
+    )
+    print("===== Final Invite Copy (Gemini) =====")

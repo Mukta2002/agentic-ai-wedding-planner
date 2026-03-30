@@ -1,129 +1,137 @@
 {
   "profile": {
-    "bride_name": "Shagun",
-    "groom_name": "Arjav",
+    "bride_name": "Khushi",
+    "groom_name": "Dhruv",
     "destination": "Udaipur",
-    "guest_count": 200,
+    "guest_count": 150,
     "budget": 20000000.0,
     "wedding_dates": [
-      "2026-12-1",
-      "2026-12-2"
+      "2027-11-1"
     ],
     "currency": "INR",
     "wedding_place": "Udaipur",
     "wedding_budget": 20000000.0,
-    "accommodation_budget_share": 0.4,
+    "accommodation_budget_share": 0.3,
     "selected_nights_override": null,
     "revised_guest_count": null,
     "prefer_budget_hotels": null,
     "confirmed_budget_breakdown": {
       "hotel_accommodation_venue": {
-        "percentage": 40.0,
-        "amount": 8000000
+        "percentage": 30.0,
+        "amount": 6000000
       },
       "catering": {
-        "percentage": 21.428571428571427,
-        "amount": 4285714
+        "percentage": 25.0,
+        "amount": 5000000
       },
       "decor": {
-        "percentage": 12.857142857142856,
-        "amount": 2571429
+        "percentage": 15.0,
+        "amount": 3000000
       },
       "photography_videography": {
-        "percentage": 8.571428571428571,
-        "amount": 1714286
+        "percentage": 10.0,
+        "amount": 2000000
       },
       "outfits_styling": {
-        "percentage": 6.857142857142857,
-        "amount": 1371429
+        "percentage": 8.0,
+        "amount": 1600000
       },
       "entertainment": {
-        "percentage": 4.285714285714286,
-        "amount": 857143
+        "percentage": 5.0,
+        "amount": 1000000
       },
       "invitations_branding": {
-        "percentage": 1.7142857142857142,
-        "amount": 342857
+        "percentage": 2.0,
+        "amount": 400000
       },
       "misc_buffer": {
-        "percentage": 4.285714285714286,
-        "amount": 857142
+        "percentage": 5.0,
+        "amount": 1000000
       }
     },
-    "logo_style": "floral",
+    "logo_style": "minimal",
     "logo_colors": [
-      "pastel but not very light"
+      "gold and brown"
     ],
     "logo_text_preference": "initials",
-    "logo_motif": "lotus and elephant but it should be less",
+    "logo_motif": "heritage",
     "logo_text_mode": "initials",
     "logo_palette": [
-      "pastel but not very light"
+      "gold and brown"
     ],
-    "logo_mood": "elegant",
-    "invite_style": "modern luxury",
+    "logo_mood": "modern",
+    "logo_feel": "timeless",
+    "logo_include_destination_symbol": true,
+    "logo_gender_balance": "feminine",
+    "logo_detailing": "fine-line",
+    "logo_hidden_motifs": [
+      "no"
+    ],
+    "invite_style": "palace",
     "invite_colors": [
-      "as you feel right"
+      "bright"
     ],
     "include_venue_details": true,
     "include_rsvp": true,
     "invite_vibe": null,
-    "invite_theme": "modern luxury",
-    "invite_background_scene": "backdrop of hotel selected",
+    "invite_theme": "palace",
+    "invite_background_scene": "Radisson Blu Palace Resort and Spa,udaipur",
     "invite_palette": [
-      "as you feel right"
+      "bright"
     ],
-    "invite_mood": "it should be traditional",
-    "invite_floral_style": "no",
-    "invite_frame_style": "no",
+    "invite_mood": "soft",
+    "invite_floral_style": "ni",
+    "invite_frame_style": "ni",
     "invite_layout_type": "one",
+    "invite_wording_style": null,
+    "invite_together_with_families": null,
+    "invite_include_short_blessing": null,
+    "invite_invitation_phrase": null,
+    "invite_rsvp_sentence_style": null,
     "selected_hotel": "Radisson Blu Palace Resort & Spa, Udaipur",
-    "teaser_style": "cinematic and royal",
-    "teaser_pacing": "slow dreamy",
-    "teaser_music_vibe": "soft instrumental",
-    "teaser_feel": "fashion forward",
-    "teaser_must_show": "yes all ceremonies",
+    "teaser_style": "royal",
+    "teaser_pacing": "slow",
+    "teaser_music_vibe": "regal",
+    "teaser_feel": "palace-luxury",
+    "teaser_must_show": null,
     "teaser_names_timing": "end-only",
-    "teaser_ending_text_style": "minimal elgant",
+    "teaser_ending_text_style": "grand royal",
+    "bride_outfit_style": null,
+    "groom_outfit_style": null,
+    "styling_mode": null,
+    "bride_skin_tone_pref": null,
+    "groom_skin_tone_pref": null,
+    "hair_styling_vibe": null,
+    "jewelry_vibe": null,
+    "teaser_backdrop": null,
+    "teaser_film_feel": null,
+    "teaser_shot_preferences": null,
+    "teaser_featured_ceremonies": null,
+    "teaser_text_overlays": null,
+    "teaser_type": "save the date",
+    "music_mood_exact": null,
+    "music_instrumental_or_lyrical": null,
+    "music_genre_specific": null,
     "ceremonies": [
       {
-        "name": "Haldi",
-        "event_date": "Day 1",
-        "time_of_day": "morning",
-        "mood": "floral",
-        "palette": [
-          "lavender and white"
-        ],
-        "dress_code": "yellow and shades",
-        "guest_note": "no",
-        "include_in_teaser": true,
-        "include_in_style_guide": true
-      },
-      {
-        "name": "sangeet",
+        "name": "wedding",
         "event_date": "Day 1",
         "time_of_day": "evening",
-        "mood": "blingy and party",
+        "mood": "pastel and beachy",
         "palette": [
-          "shimmer and shine"
+          "all pastel"
         ],
-        "dress_code": "metallic and sequin",
+        "dress_code": "pastel saree and lehenga for women and pastel white and gold sherwani for men",
         "guest_note": "no",
         "include_in_teaser": true,
-        "include_in_style_guide": true
-      },
-      {
-        "name": "wedding",
-        "event_date": "Day 2",
-        "time_of_day": "sun downer",
-        "mood": "traditional",
-        "palette": [
-          "red and maroon"
-        ],
-        "dress_code": "ivory and gold",
-        "guest_note": "no",
-        "include_in_teaser": true,
-        "include_in_style_guide": true
+        "include_in_style_guide": true,
+        "teaser_bride_outfit": "lehenga",
+        "teaser_groom_outfit": "sherwani",
+        "teaser_styling_mode": "modern luxury",
+        "teaser_backdrop": "actual venue",
+        "teaser_highlights": "entry and fireworks",
+        "teaser_couple_appearance_refs": null,
+        "teaser_jewelry_hair_makeup": "subtle"
       }
     ]
   },
@@ -133,5 +141,5 @@
   "design_spec": null,
   "media": null,
   "state_status": "profile_with_ceremonies",
-  "last_updated": "2026-03-25T14:35:01.175530"
+  "last_updated": "2026-03-30T19:56:08.676644"
 }
