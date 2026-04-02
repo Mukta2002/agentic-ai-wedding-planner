@@ -1,15 +1,15 @@
 {
   "profile": {
-    "bride_name": "Khushi",
-    "groom_name": "Dhruv",
-    "destination": "Udaipur",
-    "guest_count": 150,
+    "bride_name": "Isha",
+    "groom_name": "Rishee",
+    "destination": "Jaipur",
+    "guest_count": 200,
     "budget": 20000000.0,
     "wedding_dates": [
-      "2027-11-1"
+      "2026-10-15"
     ],
     "currency": "INR",
-    "wedding_place": "Udaipur",
+    "wedding_place": "Jaipur",
     "wedding_budget": 20000000.0,
     "accommodation_budget_share": 0.3,
     "selected_nights_override": null,
@@ -49,53 +49,53 @@
         "amount": 1000000
       }
     },
-    "logo_style": "minimal",
+    "logo_style": "modern",
     "logo_colors": [
-      "gold and brown"
+      "pastel"
     ],
     "logo_text_preference": "initials",
-    "logo_motif": "heritage",
+    "logo_motif": "small elephants, lotus",
     "logo_text_mode": "initials",
     "logo_palette": [
-      "gold and brown"
+      "pastel"
     ],
-    "logo_mood": "modern",
+    "logo_mood": "elegant",
     "logo_feel": "timeless",
     "logo_include_destination_symbol": true,
-    "logo_gender_balance": "feminine",
-    "logo_detailing": "fine-line",
-    "logo_hidden_motifs": [
-      "no"
-    ],
-    "invite_style": "palace",
+    "logo_gender_balance": "balanced",
+    "logo_detailing": "bold",
+    "logo_hidden_motifs": null,
+    "invite_style": "royal",
     "invite_colors": [
-      "bright"
+      "shades of green",
+      "shades of white"
     ],
     "include_venue_details": true,
     "include_rsvp": true,
     "invite_vibe": null,
-    "invite_theme": "palace",
-    "invite_background_scene": "Radisson Blu Palace Resort and Spa,udaipur",
+    "invite_theme": "royal",
+    "invite_background_scene": "hotel famous area",
     "invite_palette": [
-      "bright"
+      "shades of green",
+      "shades of white"
     ],
-    "invite_mood": "soft",
-    "invite_floral_style": "ni",
-    "invite_frame_style": "ni",
-    "invite_layout_type": "one",
+    "invite_mood": "soft and elegant",
+    "invite_floral_style": "yes, whichever suits best with the invite",
+    "invite_frame_style": "jharokha",
+    "invite_layout_type": "one main",
     "invite_wording_style": null,
     "invite_together_with_families": null,
     "invite_include_short_blessing": null,
     "invite_invitation_phrase": null,
     "invite_rsvp_sentence_style": null,
-    "selected_hotel": "Radisson Blu Palace Resort & Spa, Udaipur",
-    "teaser_style": "royal",
-    "teaser_pacing": "slow",
-    "teaser_music_vibe": "regal",
-    "teaser_feel": "palace-luxury",
+    "selected_hotel": "Jaipur Marriott Hotel",
+    "teaser_style": "elegant",
+    "teaser_pacing": "balanced",
+    "teaser_music_vibe": "rajasthani folk",
+    "teaser_feel": "palac-luxury",
     "teaser_must_show": null,
-    "teaser_names_timing": "end-only",
-    "teaser_ending_text_style": "grand royal",
+    "teaser_names_timing": "end only",
+    "teaser_ending_text_style": "minimal elegant",
     "bride_outfit_style": null,
     "groom_outfit_style": null,
     "styling_mode": null,
@@ -114,24 +114,47 @@
     "music_genre_specific": null,
     "ceremonies": [
       {
-        "name": "wedding",
+        "name": "haldi",
         "event_date": "Day 1",
-        "time_of_day": "evening",
-        "mood": "pastel and beachy",
+        "time_of_day": "morning",
+        "mood": "in desert",
         "palette": [
-          "all pastel"
+          "orange",
+          "purple"
         ],
-        "dress_code": "pastel saree and lehenga for women and pastel white and gold sherwani for men",
-        "guest_note": "no",
+        "dress_code": "floral flowy outfits for women and kurtas for men",
+        "guest_note": null,
         "include_in_teaser": true,
         "include_in_style_guide": true,
         "teaser_bride_outfit": "lehenga",
-        "teaser_groom_outfit": "sherwani",
-        "teaser_styling_mode": "modern luxury",
-        "teaser_backdrop": "actual venue",
-        "teaser_highlights": "entry and fireworks",
+        "teaser_groom_outfit": "kurta set",
+        "teaser_styling_mode": "fusion",
+        "teaser_backdrop": "setup at desert",
+        "teaser_highlights": "entry with colorful fireworks",
         "teaser_couple_appearance_refs": null,
-        "teaser_jewelry_hair_makeup": "subtle"
+        "teaser_jewelry_hair_makeup": "floral jewellery"
+      },
+      {
+        "name": "Sangeet",
+        "event_date": "Day 2",
+        "time_of_day": "evening",
+        "mood": "bling",
+        "palette": [
+          "silver",
+          "dark blue",
+          "black"
+        ],
+        "dress_code": "gowns for women and tuxedos for men",
+        "guest_note": null,
+        "include_in_teaser": true,
+        "include_in_style_guide": true,
+        "teaser_bride_outfit": "gown",
+        "teaser_groom_outfit": "tuxedo",
+        "teaser_styling_mode": "modern luxury",
+        "teaser_backdrop": "ballroom",
+        "teaser_highlights": "entry with fancy song",
+        "teaser_couple_appearance_refs": null,
+        "teaser_jewelry_hair_makeup": null
       }
     ]
   },
@@ -141,5 +164,5 @@
   "design_spec": null,
   "media": null,
   "state_status": "profile_with_ceremonies",
-  "last_updated": "2026-03-30T19:56:08.676644"
+  "last_updated": "2026-04-01T23:53:45.141985"
 }

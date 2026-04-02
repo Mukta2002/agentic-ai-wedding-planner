@@ -142,6 +142,33 @@ def main() -> None:
             # Non-blocking: if planner fails, proceed with existing flow
             print(f"Budget breakdown step skipped due to an error: {e}")
 
+        # --- Caterer Selection (after budget is confirmed) ---
+        try:
+            from app.services.llm_client import LLMClient
+            from app.agents.financial_agent import FinancialAgent
+
+            class _SimpleRouter:
+                def __init__(self, client):
+                    self.client = client
+                def generate_text(self, prompt):
+                    return self.client.generate_text(prompt)
+
+            _client = LLMClient(timeout_seconds=60.0)
+            _router = _SimpleRouter(_client)
+            _financial_agent = FinancialAgent(router=_router)
+            # Use same logic as financial_agent.py estimate_budget()
+            destination = (profile.destination or "").strip().lower()
+            per_guest = 2800.0 if "goa" in destination else 1500.0
+            _catering_cost = float(profile.guest_count) * per_guest
+            selected_caterer = _financial_agent.select_caterer(
+                profile=profile,
+                catering_cost=_catering_cost,
+            )
+            if selected_caterer:
+                print(f"\n✅ Caterer locked in: {selected_caterer.name}\n")
+        except Exception as _ce:
+            print(f"[Caterer] Selection skipped: {_ce}")
+
         # Maps-grounded hotel recommendations via Gemini
         try:
             maps_service = MapsHotelService()

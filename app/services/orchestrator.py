@@ -133,6 +133,17 @@ class Orchestrator:
                     design_spec = None
 
         # Update the single structured state
+        # --- Caterer Selection (interactive, after budget is known) ---
+        try:
+            selected_caterer = self.financial.select_caterer(
+                profile=profile,
+                catering_cost=budget_breakdown.catering_cost,
+            )
+            if selected_caterer is not None:
+                budget_breakdown.selected_caterer = selected_caterer
+        except Exception as e:
+            print(f"[Orchestrator] Caterer selection skipped: {e}")
+
         state.creative = creative_plan
         state.logistics = logistics_plan
         state.financial = budget_breakdown

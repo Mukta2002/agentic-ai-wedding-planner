@@ -168,6 +168,7 @@ class BudgetBreakdown(BaseModel):
     total_estimated: float
     remaining_balance: float
     budget_summary: str
+    selected_caterer: Optional[Caterer] = None
 
 
 class WeddingState(BaseModel):
@@ -198,6 +199,15 @@ class BudgetItem(BaseModel):
     item: str
     cost: float
     category: str | None = None
+
+
+class Caterer(BaseModel):
+    name: str
+    cuisine: str = ""
+    price_per_plate: str = ""
+    rating: str = ""
+    contact: str = ""
+    why: str = ""
 
 
 class MediaArtifacts(BaseModel):

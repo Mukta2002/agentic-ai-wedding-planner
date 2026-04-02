@@ -139,3 +139,29 @@ class FinancialAgent:
         if not self.router or not hasattr(self.router, "generate_speech"):
             raise RuntimeError("TTS not available on provided router.")
         return self.router.generate_speech(text, output_path=output_path)
+
+    def select_caterer(self, profile: WeddingProfile, catering_cost: float) -> Optional[object]:
+        """Fetch real caterers for the destination and let the user pick one interactively.
+
+        Call this separately after estimate_budget(). Returns a Caterer instance or None.
+        """
+        from app.models.schemas import Caterer
+        from app.services.caterer_service import CatererService
+
+        if not self.router or not hasattr(self.router, "generate_text"):
+            print("[FinancialAgent] Router not available — skipping caterer selection.")
+            return None
+
+        try:
+            svc = CatererService(self.router)
+            caterers = svc.fetch_caterers(
+                destination=profile.destination,
+                catering_cost=catering_cost,
+                guest_count=int(max(0, profile.guest_count)),
+            )
+            selected = svc.prompt_user_selection(caterers)
+            if selected:
+                return Caterer(**selected)
+        except Exception as e:
+            print(f"[FinancialAgent] Caterer selection skipped: {e}")
+        return None

@@ -1,0 +1,26 @@
+{
+  "message": "Veo generation failed.",
+  "kind": "video",
+  "target_out_path": "assets/video/teaser.mp4",
+  "sdk": {
+    "sdk_used": "google-genai",
+    "client_available": true,
+    "legacy_available": false,
+    "import_notes": {
+      "google-genai": "ok",
+      "google-generativeai": "not_available: No module named 'google.generativeai'"
+    },
+    "versions": {
+      "google-genai": "1.67.0",
+      "google-generativeai": null
+    },
+    "client_type": "Client"
+  },
+  "details": {
+    "model": "veo-3.1-generate-preview",
+    "prompt": "Create a 20\u201330 second cinematic luxury wedding teaser for Isha & Rishee in Jaipur. Wedding dates: 2026-10-15. Selected hotel/venue: Jaipur Marriott Hotel. Style direction: elegant, refined, graceful, premium, timeless Visual language: golden-hour light, refined compositions, shallow depth of field, smooth camera moves, intimate macro details. balanced pacing with measured rhythm. Narrative: open with destination establishing, move into authentic couple moments, ceremony highlights, refined celebration energy, close with poetic sunset. Ceremony sequence (use exactly these in order; include visual progression; do not omit any): \n- haldi  Day 1 morning  mood in desert  palette orange, purple  dress code floral flowy outfits for women and kurtas for men\n- Sangeet  Day 2 evening  mood bling  palette silver, dark blue, black  dress code gowns for women and tuxedos for men\nAUDIO IS REQUIRED: generate native audio. Video must not be silent. Soundtrack: warm romantic ballad feel, gentle piano/strings, elegant cinematic pacing; professionally mixed. Music vibe: soft instrumental with piano and strings. Ambient layers: destination-appropriate natural sounds only. Names/dates placement: end-only. Deliver one polished premium teaser only (no multiple versions).",
+    "attempts": 1,
+    "final_error": "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. ', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}]}}",
+    "timestamp": "20260401T235345Z"
+  }
+}
