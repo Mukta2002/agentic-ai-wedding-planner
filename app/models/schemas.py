@@ -178,6 +178,14 @@ class WeddingState(BaseModel):
     financial: Optional[BudgetBreakdown] = None
     # Design direction drives downstream visual/media generation
     design_spec: Optional[DesignDirectionSpec] = None
+    # Selected wedding hashtag available to all downstream generators
+    wedding_hashtag: Optional[str] = None
+    # Hashtag inclusion preferences (stored explicitly for downstream use)
+    use_wedding_hashtag: Optional[bool] = None
+    include_hashtag_in_logo: Optional[bool] = None
+    include_hashtag_in_invite: Optional[bool] = None
+    include_hashtag_in_teaser: Optional[bool] = None
+    include_hashtag_in_style_guide: Optional[bool] = None
     # Optional media artifacts generated after planning
     media: Optional["MediaArtifacts"] = None
     state_status: str

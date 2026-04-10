@@ -21,7 +21,8 @@ class CatererService:
             f"The couple has a catering budget of {currency} {int(catering_cost):,} for {guest_count} guests "
             f"(approx {currency} {per_plate:,}/plate). Only suggest caterers whose price per plate fits this budget. "
             f"Focus on mid-range to premium caterers, NOT ultra-luxury 5-star hotel catering. "
-            f"Suggest realistic options a wedding couple would actually book."
+            f"Suggest realistic options a wedding couple would actually book. "
+            f"Return all prices in the user's selected currency: {currency}. Do not use any other currency."
         )
 
     def _detect_currency(self, destination: str) -> str:
@@ -51,8 +52,8 @@ class CatererService:
                 return currency
         return "USD"  # default fallback
 
-    def fetch_caterers(self, destination: str, catering_cost: float, guest_count: int) -> list[dict]:
-        currency = self._detect_currency(destination)
+    def fetch_caterers(self, destination: str, catering_cost: float, guest_count: int, currency: str | None = None) -> list[dict]:
+        currency = (currency or self._detect_currency(destination))
         prompt = self._build_prompt(destination, catering_cost, guest_count, currency)
         try:
             result = self.router.generate_text(prompt)

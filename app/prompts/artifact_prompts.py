@@ -810,6 +810,14 @@ def build_teaser_prompt_struct(
         appearance_refs = (getattr(c, "teaser_couple_appearance_refs", "") or getattr(c, "appearance_refs", ""))
         beauty_vibe = (getattr(c, "teaser_jewelry_hair_makeup", "") or getattr(c, "beauty_vibe", ""))
 
+        # Debug: ensure critical ceremony directives are visible in logs
+        try:
+            print(f"[Teaser] Must-show venue elements: {backdrop}")
+            print(f"[Teaser] Must-show ceremony moments: {highlights}")
+            print(f"[Teaser] Must-show styling cues: bride={bride_outfit}; groom={groom_outfit}; styling={styling_mode}")
+        except Exception:
+            pass
+
         block = (
             f"Ceremony: {name}\n"
             f"- time of day: {day_time}\n"
@@ -818,6 +826,10 @@ def build_teaser_prompt_struct(
             f"- backdrop: {backdrop}\n"
             f"- detail shots: jewelry, fabric textures, floral elements, hands, entrances, ritual objects as applicable\n"
             f"- key beats: {highlights}\n"
+            f"- MUST SHOW venue/backdrop prominently: {backdrop}\n"
+            f"- MUST SHOW key ceremony moments: {highlights}\n"
+            f"- MUST SHOW attire styling clearly: bride {bride_outfit}; groom {groom_outfit}; guests reflect {styling_mode}\n"
+            f"- MUST AVOID generic unrelated visuals; keep shots grounded in actual venue and rituals\n"
             f"- camera/movement: premium cinematic; mix of slow dolly, delicate handheld; intentional negative space\n"
             f"- lighting: specify golden hour/daylight/candlelit per time; soft contrast, natural falloff\n"
             f"- lensing: 35mm–85mm prime feel; shallow depth for intimate moments; wider lens for venue reveals\n"
@@ -865,6 +877,11 @@ def build_teaser_prompt_struct(
         f"- Teaser type: {teaser_type}\n"
         f"- Ending style: {ending_style}\n"
         f"- Music mood: {music_pref}\n"
+        "\nMust-Have Focus (Global):\n"
+        "- MUST SHOW real venue/backdrops in each ceremony block.\n"
+        "- MUST SHOW the user-highlighted key moments (e.g., bride entry, varmala).\n"
+        "- MUST SHOW actual attire/styling cues provided.\n"
+        "- MUST AVOID generic stock-like shots or unrelated visuals.\n"
         "\nScene Design Rules:\n"
         "- use visually distinct treatment per ceremony\n"
         "- reflect real outfit/styling inputs\n"

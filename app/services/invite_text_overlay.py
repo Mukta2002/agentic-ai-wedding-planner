@@ -371,6 +371,8 @@ def render_invite_text(background_path: str, payload: Dict, out_path: str) -> Di
 
     # Compose sections and flattened lines (explicit render payload)
     sections = compose_invite_sections(payload)
+    # Optional hashtag line: allow caller to pass explicit hashtag to render at bottom
+    hashtag_line = str(payload.get("hashtag_line", "")).strip()
     logger.debug("Validating text variables before rendering")
     logger.debug(f"Header: {sections.get('eyebrow')}")
     logger.debug(f"Names: {sections.get('names')}")
@@ -426,6 +428,7 @@ def render_invite_text(background_path: str, payload: Dict, out_path: str) -> Di
         "rsvp": _load_font(size=max(24, int(base * 0.035)), role="rsvp"),
         "blessing": _load_font(size=max(28, int(base * 0.04)), role="body"),
         "body": _load_font(size=max(28, int(base * 0.04)), role="body"),
+        "hashtag": _load_font(size=max(18, int(base * 0.03)), role="body"),
     }
     if any(v is None for v in [fonts["header"], fonts["names"], fonts["body"]]):
         return {"ok": False, "path": out_path, "exists": False, "error": "Font load failed", "fields": fields}
@@ -650,6 +653,27 @@ def render_invite_text(background_path: str, payload: Dict, out_path: str) -> Di
     except Exception:
         pass
 
+    # If a hashtag line is provided, render it subtly near the bottom center
+    if hashtag_line:
+        try:
+            logger.info(f"[Invite] Hashtag line added: {hashtag_line}")
+            hfont = fonts.get("hashtag") or fonts.get("body")
+            if hfont is not None:
+                hbbox = draw.textbbox((0, 0), hashtag_line, font=hfont)
+                hw = hbbox[2] - hbbox[0]
+                hh = hbbox[3] - hbbox[1]
+                hx = (W - hw) // 2
+                hy = int(H * 0.94) - hh  # tasteful footer placement
+                # Match color to primary_fill heuristics near footer region
+                footer_box = (max(0, hx - 8), max(0, hy - 4), min(W, hx + hw + 8), min(H, hy + hh + 4))
+                lumi_footer = _sample_region_luminance(bg, footer_box)
+                hfill = (40, 40, 40, 255) if lumi_footer >= 155 else (235, 235, 235, 255)
+                shadow = (0, 0, 0, 60) if hfill[0] < 128 else (255, 255, 255, 60)
+                draw.text((hx, hy + 1), hashtag_line, fill=shadow, font=hfont)
+                draw.text((hx, hy), hashtag_line, fill=hfill, font=hfont)
+        except Exception:
+            pass
+
     try:
         composed = Image.alpha_composite(bg, overlay).convert("RGB")
         composed.save(out_path)
@@ -665,7 +689,7 @@ def render_invite_text(background_path: str, payload: Dict, out_path: str) -> Di
             "size": size,
             "fields": fields,
             # Expose explicit render payload for visibility/validation
-            "render": {"sections": sections, "lines": final_lines},
+            "render": {"sections": sections, "lines": final_lines, "hashtag": hashtag_line},
         }
     except Exception as e:
         logger.error(f"Invite rendering failed: {str(e)}", exc_info=True)
@@ -700,6 +724,7 @@ def render_invite_sections(background_path: str, sections_payload: Dict, out_pat
     venue_line = str(sections_payload.get("venue_line", "")).strip()
     place_line = str(sections_payload.get("place_line", "")).strip()
     rsvp_line = str(sections_payload.get("rsvp_line", "")).strip()
+    hashtag_line = str(sections_payload.get("hashtag_line", "")).strip()
     logger.debug("Starting invite rendering")
     logger.debug("Ensuring single render execution")
     logger.debug(f"Invite payload: {sections_payload}")
@@ -718,6 +743,7 @@ def render_invite_sections(background_path: str, sections_payload: Dict, out_pat
         "venue_line": venue_line,
         "place_line": place_line,
         "rsvp_line": rsvp_line,
+        "hashtag_line": hashtag_line,
     }
 
     # Build final lines exactly once
@@ -798,6 +824,7 @@ def render_invite_sections(background_path: str, sections_payload: Dict, out_pat
         "rsvp": _load_font(size=max(24, int(base * 0.035)), role="rsvp"),
         "blessing": _load_font(size=max(28, int(base * 0.04)), role="body"),
         "body": _load_font(size=max(28, int(base * 0.04)), role="body"),
+        "hashtag": _load_font(size=max(18, int(base * 0.03)), role="body"),
     }
     if any(v is None for v in [fonts["header"], fonts["names"], fonts["body"]]):
         return {"ok": False, "path": out_path, "exists": False, "error": "Font load failed", "fields": {}}
@@ -971,6 +998,26 @@ def render_invite_sections(background_path: str, sections_payload: Dict, out_pat
         y += h + _gap_for(role)
         if i < len(wrapped_pairs) - 1:
             y += extra_per_gap
+
+    # If a hashtag line is provided, render it subtly near the bottom center
+    if hashtag_line:
+        try:
+            logger.info(f"[Invite] Hashtag line added: {hashtag_line}")
+            hfont = fonts.get("hashtag") or fonts.get("body")
+            if hfont is not None:
+                hbbox = draw.textbbox((0, 0), hashtag_line, font=hfont)
+                hw = hbbox[2] - hbbox[0]
+                hh = hbbox[3] - hbbox[1]
+                hx = (W - hw) // 2
+                hy = int(H * 0.94) - hh
+                footer_box = (max(0, hx - 8), max(0, hy - 4), min(W, hx + hw + 8), min(H, hy + hh + 4))
+                lumi_footer = _sample_region_luminance(bg, footer_box)
+                hfill = (40, 40, 40, 255) if lumi_footer >= 155 else (235, 235, 235, 255)
+                shadow = (0, 0, 0, 60) if hfill[0] < 128 else (255, 255, 255, 60)
+                draw.text((hx, hy + 1), hashtag_line, fill=shadow, font=hfont)
+                draw.text((hx, hy), hashtag_line, fill=hfill, font=hfont)
+        except Exception:
+            pass
 
     try:
         composed_img = Image.alpha_composite(bg, overlay).convert("RGB")

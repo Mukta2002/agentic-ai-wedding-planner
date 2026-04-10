@@ -110,6 +110,75 @@ def _read_style_events_from_state(state: WeddingState | Any) -> List[Dict[str, A
     return []
 
 
+def generate_wedding_hashtags(bride_name: str, groom_name: str, location: str | None) -> List[str]:
+    """Generate exactly 10 high-quality hashtag options via Gemini and parse them.
+
+    Keeps output robust by accepting a variety of list formats and normalizing
+    to clean hashtags (leading '#', no spaces). Falls back to simple blends
+    if the LLM response is insufficient.
+    """
+    from app.services.llm_client import LLMClient
+    import re
+
+    couple = f"{(bride_name or '').strip()} & {(groom_name or '').strip()}".strip()
+    place = (location or '').strip()
+    client = LLMClient(timeout_seconds=60.0)
+    prompt = (
+        "Generate exactly 10 unique, creative, and classy wedding hashtags for a couple named "
+        f"{bride_name} and {groom_name}"
+        + (f" in {place}. " if place else ". ")
+        + "Include a balanced mix of elegant/classy, playful, place-aware, and couple-name-based options. "
+        + "Avoid near-duplicates and weak variants. Avoid generic filler like 'forever', 'official', 'inlove', or 'ourstory' unless truly excellent. "
+        + "Return a clean numbered list 1-10 with exactly one hashtag per line, each starting with '#'. No extra commentary."
+    )
+    text = ""
+    try:
+        text = client.generate_text(prompt)
+    except Exception:
+        text = ""
+
+    candidates: List[str] = []
+    for raw_line in (text or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        # Accept formats like "1. #Tag", "12) #Tag", or just "#Tag"
+        m = re.search(r"(#\w[\w_]+)", line)
+        if m:
+            tag = m.group(1)
+            # Normalize: ensure leading '#', keep alnum+underscore only, no spaces
+            tag = "#" + re.sub(r"[^A-Za-z0-9_]", "", tag.lstrip("#"))
+            if len(tag) > 1 and tag not in candidates:
+                candidates.append(tag)
+        else:
+            # If a non-numbered raw hashtag line without '#', promote if simple
+            if line.startswith("#"):
+                tag = "#" + re.sub(r"[^A-Za-z0-9_]", "", line.lstrip("#"))
+                if len(tag) > 1 and tag not in candidates:
+                    candidates.append(tag)
+
+    # Fallbacks to ensure we have enough options (up to 10)
+    def _slug(s: str) -> str:
+        return re.sub(r"[^A-Za-z0-9]", "", (s or "").strip())
+
+    if len(candidates) < 10:
+        b = _slug(bride_name)
+        g = _slug(groom_name)
+        p = _slug(place)
+        seeds = [
+            f"#{b}Weds{g}", f"#{g}Weds{b}", f"#Team{b}{g}", f"#{b}{g}Forever", f"#{g}{b}Forever",
+            f"#{b}Hearts{g}", f"#{g}Hearts{b}", f"#{b}And{g}", f"#{g}And{b}",
+            f"#{b}{g}{p}" if p else f"#{b}{g}",
+            f"#{g}{b}{p}" if p else f"#{g}{b}",
+        ]
+        for t in seeds:
+            if t not in candidates:
+                candidates.append(t)
+
+    # Cap to exactly 10 unique items
+    return candidates[:10]
+
+
 def main() -> None:
     global _INVITE_COPY_LOGGED
     global _RENDER_PAYLOAD_LOGGED
@@ -133,6 +202,93 @@ def main() -> None:
         print(f"Guests:          {profile.guest_count}")
         print(f"Budget:          {profile.budget} {getattr(profile, 'currency', 'INR')}")
         print("==================================\n")
+
+        # ---- Wedding Hashtag Selection (before any logo generation) ----
+        wedding_hashtag: str | None = None
+        try:
+            options = generate_wedding_hashtags(
+                profile.bride_name,
+                profile.groom_name,
+                getattr(profile, 'wedding_place', None) or getattr(profile, 'destination', None),
+            )
+            if options:
+                print("\n===== Wedding Hashtag Options =====")
+                for i, tag in enumerate(options, start=1):
+                    print(f"{i}. {tag}")
+                print("==================================\n")
+                while True:
+                    sel = input("Select a hashtag (enter number 1-10): ").strip()
+                    try:
+                        idx = int(sel)
+                        if 1 <= idx <= len(options):
+                            wedding_hashtag = options[idx - 1]
+                            break
+                        else:
+                            print(f"Please enter a number between 1 and {len(options)}.")
+                    except Exception:
+                        print("Please enter a valid number.")
+                print(f"[Branding] Selected wedding hashtag: {wedding_hashtag}")
+            else:
+                print("[Branding] No hashtag options generated; skipping selection.")
+        except Exception as _he:
+            print(f"[Branding] Hashtag step skipped due to an error: {_he}")
+
+        # Ask hashtag inclusion preferences (after selection)
+        use_wedding_hashtag = None
+        include_logo = False
+        include_invite = False
+        include_teaser = False
+        include_style = False
+        def _ask_yn(prompt: str) -> bool:
+            while True:
+                ans = (input(prompt).strip() if True else "").lower()
+                if ans in ("y", "yes"): return True
+                if ans in ("n", "no"): return False
+                print("Please enter 'y' or 'n'.")
+        if wedding_hashtag:
+            use_wedding_hashtag = _ask_yn("\nDo you want to include this hashtag in your wedding branding? (y/n): ")
+            if use_wedding_hashtag:
+                include_logo = _ask_yn("Include hashtag in logo? (y/n): ")
+                include_invite = _ask_yn("Include hashtag in invite? (y/n): ")
+                include_teaser = _ask_yn("Include hashtag in teaser? (y/n): ")
+                include_style = _ask_yn("Include hashtag in style guide? (y/n): ")
+            else:
+                include_logo = include_invite = include_teaser = include_style = False
+
+            # Summary
+            print("\n===== Hashtag Branding Summary =====")
+            print(f"Selected hashtag: {wedding_hashtag}")
+            print(f"Use hashtag: {'Yes' if use_wedding_hashtag else 'No'}")
+            print(f"Logo: {'Yes' if include_logo else 'No'}")
+            print(f"Invite: {'Yes' if include_invite else 'No'}")
+            print(f"Teaser: {'Yes' if include_teaser else 'No'}")
+            print(f"Style Guide: {'Yes' if include_style else 'No'}")
+            print("===================================\n")
+
+        # Persist minimal state with hashtag so downstream steps can access it
+        from app.models.schemas import WeddingState
+        _hashtag_state = None
+        try:
+            storage = Storage()
+            _hashtag_state = WeddingState(
+                profile=profile,
+                creative=None,
+                logistics=None,
+                financial=None,
+                design_spec=None,
+                wedding_hashtag=wedding_hashtag,
+                use_wedding_hashtag=bool(use_wedding_hashtag) if use_wedding_hashtag is not None else None,
+                include_hashtag_in_logo=bool(include_logo) if wedding_hashtag else None,
+                include_hashtag_in_invite=bool(include_invite) if wedding_hashtag else None,
+                include_hashtag_in_teaser=bool(include_teaser) if wedding_hashtag else None,
+                include_hashtag_in_style_guide=bool(include_style) if wedding_hashtag else None,
+                media=None,
+                state_status="profile_collected",
+                last_updated=datetime.utcnow().isoformat(),
+            )
+            storage.save_state(_hashtag_state)
+        except Exception:
+            _hashtag_state = None
 
         # Budget breakdown confirmation before hotel recommendations
         try:
@@ -466,6 +622,25 @@ def main() -> None:
                 # Build prompts directly from profile + preferences (no design_spec in intake mode)
                 logo_prompt = build_logo_prompt(profile, None, None)
                 invite_prompt = build_invite_prompt(profile, None, None)  # background-only
+                # Conditional hashtag wiring + explicit tag text
+                try:
+                    use_tag = bool(getattr(_hashtag_state, 'use_wedding_hashtag', False))
+                    tag = str(getattr(_hashtag_state, 'wedding_hashtag', '') or '').strip()
+                    inc_logo = bool(getattr(_hashtag_state, 'include_hashtag_in_logo', False))
+                    inc_invite = bool(getattr(_hashtag_state, 'include_hashtag_in_invite', False))
+                    inc_teaser = bool(getattr(_hashtag_state, 'include_hashtag_in_teaser', False))
+                    inc_style = bool(getattr(_hashtag_state, 'include_hashtag_in_style_guide', False))
+                    print(f"[Branding] Applying hashtag to logo: {'yes' if (use_tag and inc_logo and tag) else 'no'}")
+                    print(f"[Branding] Applying hashtag to invite: {'yes' if (use_tag and inc_invite and tag) else 'no'}")
+                    print(f"[Branding] Applying hashtag to teaser: {'yes' if (use_tag and inc_teaser and tag) else 'no'}")
+                    print(f"[Branding] Applying hashtag to style guide: {'yes' if (use_tag and inc_style and tag) else 'no'}")
+                    if use_tag and inc_logo and tag:
+                        logo_prompt += f" Include the exact hashtag '{tag}' as a small, elegant secondary line under the monogram."
+                        print(f"[Logo] Hashtag included in logo composition: {tag}")
+                    if use_tag and inc_invite and tag:
+                        invite_prompt += f" Background art only; the final invite will include the exact hashtag '{tag}' via text overlay."
+                except Exception:
+                    pass
 
                 router = ModelRouter()
                 # Pre-generation grounded summary
@@ -504,7 +679,8 @@ def main() -> None:
                 except Exception:
                     pass
                 # Generate logo once (happens before teaser questions per required flow)
-                logo_path, logo_meta = router.generate_logo_image(logo_prompt, state=None)
+                # Pass minimal state so hashtag is available downstream
+                logo_path, logo_meta = router.generate_logo_image(logo_prompt, state=_hashtag_state)
 
                 # Invite: Step A background only, Step B overlay composed text
                 from app.services.invite_text_overlay import render_invite_sections
@@ -552,7 +728,8 @@ def main() -> None:
                 except Exception:
                     pass
 
-                _, bg_meta = router.generate_invite_image(invite_prompt, out_path=bg_out, state=None)
+                # Pass minimal state so hashtag is available downstream
+                _, bg_meta = router.generate_invite_image(invite_prompt, out_path=bg_out, state=_hashtag_state)
 
                 # Post-generation verification (non-blocking)
                 try:
@@ -588,6 +765,12 @@ def main() -> None:
                     include_venue_details=getattr(profile, 'include_venue_details', None),
                     selected_hotel=getattr(profile, 'selected_hotel', None),
                 )
+                try:
+                    if use_tag and inc_invite and tag:
+                        copy_sections['hashtag_line'] = tag
+                        print(f"[Invite] Hashtag line added: {tag}")
+                except Exception:
+                    pass
                 if not _INVITE_COPY_LOGGED:
                     print("===== Final Invite Copy (Gemini) =====")
                     try:
@@ -663,6 +846,12 @@ def main() -> None:
                             logistics=None,
                             financial=None,
                             design_spec=None,
+                            wedding_hashtag=wedding_hashtag,
+                            use_wedding_hashtag=bool(use_wedding_hashtag) if 'use_wedding_hashtag' in locals() else None,
+                            include_hashtag_in_logo=bool(include_logo) if 'include_logo' in locals() else None,
+                            include_hashtag_in_invite=bool(include_invite) if 'include_invite' in locals() else None,
+                            include_hashtag_in_teaser=bool(include_teaser) if 'include_teaser' in locals() else None,
+                            include_hashtag_in_style_guide=bool(include_style) if 'include_style' in locals() else None,
                             media=None,
                             state_status="profile_with_ceremonies",
                             last_updated=datetime.utcnow().isoformat(),
@@ -691,6 +880,11 @@ def main() -> None:
                                 # Build teaser prompt using current profile + ceremonies
                                 try:
                                     video_prompt2 = build_video_prompt(profile, None, None)
+                                    try:
+                                        if getattr(minimal_state, 'use_wedding_hashtag', False) and getattr(minimal_state, 'include_hashtag_in_teaser', False):
+                                            video_prompt2 = (video_prompt2 or "") + " Include the couple's selected wedding hashtag only if approved."
+                                    except Exception:
+                                        pass
                                 except Exception:
                                     video_prompt2 = "Create a short elegant wedding teaser with native audio."
                                 video_out = os.path.join("assets", "video", "teaser.mp4")
@@ -710,15 +904,27 @@ def main() -> None:
                                 # Graceful handling: do not crash; keep style guide step independent
                                 print(f"[Teaser] saved=False error={te}")
 
-                            # Style guide PDF generation (independent of teaser success)
+                            # Style guide PDF: ensure it runs exactly once here before exiting intake path.
                             try:
-                                pdf_out2 = os.path.join("assets", "style_guides", "style_guide.pdf")
-                                pdf_info2 = build_style_guide_pdf(minimal_state, pdf_out2)
-                                print(
-                                    f"[Style Guide] saved={pdf_info2.get('exists', False)} path={pdf_info2.get('path')}"
-                                )
-                            except Exception as pe:
-                                print(f"[Style Guide] saved=False error={pe}")
+                                cers = list(getattr(profile, 'ceremonies', []) or [])
+                                selected = [c for c in cers if getattr(c, 'include_in_style_guide', True)]
+                                try:
+                                    print(f"[StyleGuide][DEBUG] Selected for style guide: {len(selected)}")
+                                    print(f"[StyleGuide][DEBUG] Selected names: {[getattr(c, 'name', '') for c in selected]}")
+                                except Exception:
+                                    pass
+                                if not selected:
+                                    print("[StyleGuide] Skipped: no ceremonies selected")
+                                else:
+                                    print("[StyleGuide][DEBUG] Invoking style guide pipeline now")
+                                    try:
+                                        pdf_out = os.path.join("assets", "style_guides", "style_guide.pdf")
+                                        pdf_info = build_style_guide_pdf(minimal_state, pdf_out, router=router)
+                                        print(f"[StyleGuide] path={pdf_info.get('path')} exists={pdf_info.get('exists')} pages={pdf_info.get('page_count')}")
+                                    except Exception as _sg_e:
+                                        print(f"[StyleGuide][ERROR] {_sg_e}")
+                            except Exception as _sg_outer:
+                                print(f"[StyleGuide][ERROR] {_sg_outer}")
                     except Exception as se:
                         print(f"Could not save ceremonies to state: {se}")
                 except Exception:
@@ -749,9 +955,36 @@ def main() -> None:
 
     logo_prompt = build_logo_prompt(profile, creative, design_spec)
     invite_prompt = build_invite_prompt(profile, creative, design_spec)
+    # Minimal conditional note + explicit exact hashtag wiring
+    try:
+        use_tag = bool(getattr(state, 'use_wedding_hashtag', False))
+        tag = str(getattr(state, 'wedding_hashtag', '') or '').strip()
+        inc_logo = bool(getattr(state, 'include_hashtag_in_logo', False))
+        inc_invite = bool(getattr(state, 'include_hashtag_in_invite', False))
+        inc_teaser = bool(getattr(state, 'include_hashtag_in_teaser', False))
+        inc_style = bool(getattr(state, 'include_hashtag_in_style_guide', False))
+
+        print(f"[Branding] Applying hashtag to logo: {'yes' if (use_tag and inc_logo and tag) else 'no'}")
+        print(f"[Branding] Applying hashtag to invite: {'yes' if (use_tag and inc_invite and tag) else 'no'}")
+        print(f"[Branding] Applying hashtag to teaser: {'yes' if (use_tag and inc_teaser and tag) else 'no'}")
+        print(f"[Branding] Applying hashtag to style guide: {'yes' if (use_tag and inc_style and tag) else 'no'}")
+
+        if use_tag:
+            if inc_logo and tag:
+                logo_prompt += f" Include the exact hashtag '{tag}' as a small, elegant secondary line under the monogram."
+                print(f"[Logo] Hashtag included in logo composition: {tag}")
+            if inc_invite and tag:
+                invite_prompt += f" Background art only; the final invite will include the exact hashtag '{tag}' via text overlay."
+    except Exception:
+        pass
     # Build structured teaser prompt (global + ceremony blocks)
     teaser_struct = build_teaser_prompt_struct(profile, logistics, design_spec)
     video_prompt = teaser_struct.get("final_teaser_prompt", "")
+    try:
+        if use_tag and inc_teaser and tag:
+            video_prompt = (video_prompt or "") + f" Include the exact wedding hashtag '{tag}' on the final title/ending card."
+    except Exception:
+        pass
     # Persist structured teaser prompt for downstream use
     try:
         media = getattr(state, "media", None)
@@ -900,6 +1133,13 @@ def main() -> None:
         include_venue_details=getattr(profile, 'include_venue_details', None),
         selected_hotel=getattr(profile, 'selected_hotel', None),
     )
+    # Inject hashtag line if enabled
+    try:
+        if use_tag and inc_invite and tag:
+            copy_sections['hashtag_line'] = tag
+            print(f"[Invite] Hashtag line added: {tag}")
+    except Exception:
+        pass
     if not _INVITE_COPY_LOGGED:
         print("===== Final Invite Copy (Gemini) =====")
         try:
@@ -988,7 +1228,17 @@ def main() -> None:
 
     # Ending card: render from structured profile and attempt to append programmatically
     try:
-        ending = render_teaser_ending_card(profile, out_path=os.path.join("assets", "video", "ending_card.png"))
+        ending = render_teaser_ending_card(
+            profile,
+            out_path=os.path.join("assets", "video", "ending_card.png"),
+            hashtag=(tag if ('use_tag' in locals() and 'inc_teaser' in locals() and use_tag and inc_teaser and tag) else None),
+            include_hashtag=('use_tag' in locals() and 'inc_teaser' in locals() and use_tag and inc_teaser and bool(tag)),
+        )
+        try:
+            if 'use_tag' in locals() and 'inc_teaser' in locals() and use_tag and inc_teaser and tag:
+                print(f"[Teaser] Hashtag added to ending card: {tag}")
+        except Exception:
+            pass
         print(f"[Teaser-EndingCard] path={ending.get('path')} exists={ending.get('exists')}")
         if video_meta.get("status") == "generated" and ending.get("exists"):
             append = append_ending_card_to_video(

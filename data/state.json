@@ -1,15 +1,15 @@
 {
   "profile": {
-    "bride_name": "Isha",
-    "groom_name": "Rishee",
-    "destination": "Jaipur",
-    "guest_count": 200,
+    "bride_name": "Khushi",
+    "groom_name": "Shwet",
+    "destination": "Goa",
+    "guest_count": 150,
     "budget": 20000000.0,
     "wedding_dates": [
-      "2026-10-15"
+      "2027-11-1"
     ],
     "currency": "INR",
-    "wedding_place": "Jaipur",
+    "wedding_place": "Goa",
     "wedding_budget": 20000000.0,
     "accommodation_budget_share": 0.3,
     "selected_nights_override": null,
@@ -49,53 +49,51 @@
         "amount": 1000000
       }
     },
-    "logo_style": "modern",
+    "logo_style": "floral",
     "logo_colors": [
-      "pastel"
+      "turqoiuse blue"
     ],
     "logo_text_preference": "initials",
-    "logo_motif": "small elephants, lotus",
+    "logo_motif": "lotus",
     "logo_text_mode": "initials",
     "logo_palette": [
-      "pastel"
+      "turqoiuse blue"
     ],
-    "logo_mood": "elegant",
+    "logo_mood": "soft",
     "logo_feel": "timeless",
     "logo_include_destination_symbol": true,
-    "logo_gender_balance": "balanced",
-    "logo_detailing": "bold",
+    "logo_gender_balance": "feminine",
+    "logo_detailing": null,
     "logo_hidden_motifs": null,
     "invite_style": "royal",
     "invite_colors": [
-      "shades of green",
-      "shades of white"
+      "dark red"
     ],
     "include_venue_details": true,
     "include_rsvp": true,
     "invite_vibe": null,
     "invite_theme": "royal",
-    "invite_background_scene": "hotel famous area",
+    "invite_background_scene": "Alila Diwa Goa",
     "invite_palette": [
-      "shades of green",
-      "shades of white"
+      "dark red"
     ],
-    "invite_mood": "soft and elegant",
-    "invite_floral_style": "yes, whichever suits best with the invite",
-    "invite_frame_style": "jharokha",
-    "invite_layout_type": "one main",
+    "invite_mood": "grand",
+    "invite_floral_style": "no",
+    "invite_frame_style": "no",
+    "invite_layout_type": "one",
     "invite_wording_style": null,
     "invite_together_with_families": null,
     "invite_include_short_blessing": null,
     "invite_invitation_phrase": null,
     "invite_rsvp_sentence_style": null,
-    "selected_hotel": "Jaipur Marriott Hotel",
-    "teaser_style": "elegant",
-    "teaser_pacing": "balanced",
-    "teaser_music_vibe": "rajasthani folk",
-    "teaser_feel": "palac-luxury",
+    "selected_hotel": "Alila Diwa Goa",
+    "teaser_style": "cinematic",
+    "teaser_pacing": "slow dreamy",
+    "teaser_music_vibe": "soft instrumental",
+    "teaser_feel": "fashion forward",
     "teaser_must_show": null,
     "teaser_names_timing": "end only",
-    "teaser_ending_text_style": "minimal elegant",
+    "teaser_ending_text_style": "grand royal",
     "bride_outfit_style": null,
     "groom_outfit_style": null,
     "styling_mode": null,
@@ -108,52 +106,33 @@
     "teaser_shot_preferences": null,
     "teaser_featured_ceremonies": null,
     "teaser_text_overlays": null,
-    "teaser_type": "save the date",
+    "teaser_type": "cinematic wedding trailer",
     "music_mood_exact": null,
     "music_instrumental_or_lyrical": null,
     "music_genre_specific": null,
     "ceremonies": [
       {
-        "name": "haldi",
+        "name": "Carnival",
         "event_date": "Day 1",
-        "time_of_day": "morning",
-        "mood": "in desert",
+        "time_of_day": "afternoon",
+        "mood": "Goa Carnival Luxe Fiesta,beachside in Goa during afternoon transitioning to evening along the lawn of Alila Diwa Goa hotel",
         "palette": [
-          "orange",
-          "purple"
+          "fuchsia",
+          "coral orange",
+          "teal",
+          "sunshine yellow",
+          "with gold accents."
         ],
-        "dress_code": "floral flowy outfits for women and kurtas for men",
-        "guest_note": null,
+        "dress_code": "women to wear co-ord sets,summer dresses and men to wear floral breezy shirts and shorts",
+        "guest_note": "no",
         "include_in_teaser": true,
         "include_in_style_guide": true,
-        "teaser_bride_outfit": "lehenga",
-        "teaser_groom_outfit": "kurta set",
-        "teaser_styling_mode": "fusion",
-        "teaser_backdrop": "setup at desert",
-        "teaser_highlights": "entry with colorful fireworks",
-        "teaser_couple_appearance_refs": null,
-        "teaser_jewelry_hair_makeup": "floral jewellery"
-      },
-      {
-        "name": "Sangeet",
-        "event_date": "Day 2",
-        "time_of_day": "evening",
-        "mood": "bling",
-        "palette": [
-          "silver",
-          "dark blue",
-          "black"
-        ],
-        "dress_code": "gowns for women and tuxedos for men",
-        "guest_note": null,
-        "include_in_teaser": true,
-        "include_in_style_guide": true,
-        "teaser_bride_outfit": "gown",
-        "teaser_groom_outfit": "tuxedo",
-        "teaser_styling_mode": "modern luxury",
-        "teaser_backdrop": "ballroom",
-        "teaser_highlights": "entry with fancy song",
-        "teaser_couple_appearance_refs": null,
+        "teaser_bride_outfit": "halter neck butter yellow gown",
+        "teaser_groom_outfit": "crisp white shirt snd beige trousers",
+        "teaser_styling_mode": "feathers, tassels, tropical leaves, lanterns",
+        "teaser_backdrop": "lawn and most stunning area of the hotel Alila Diwa Goa",
+        "teaser_highlights": "highlight bubbles and dance entry of couple along with fun family moments",
+        "teaser_couple_appearance_refs": "no",
         "teaser_jewelry_hair_makeup": null
       }
     ]
@@ -162,7 +141,13 @@
   "logistics": null,
   "financial": null,
   "design_spec": null,
+  "wedding_hashtag": "#KhushiShwetEverAfter",
+  "use_wedding_hashtag": true,
+  "include_hashtag_in_logo": true,
+  "include_hashtag_in_invite": false,
+  "include_hashtag_in_teaser": true,
+  "include_hashtag_in_style_guide": true,
   "media": null,
   "state_status": "profile_with_ceremonies",
-  "last_updated": "2026-04-01T23:53:45.141985"
+  "last_updated": "2026-04-10T16:37:25.993678"
 }

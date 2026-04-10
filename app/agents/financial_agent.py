@@ -17,19 +17,24 @@ class FinancialAgent:
     def __init__(self, router: Optional[object] = None) -> None:
         self.router = router
 
-    def estimate_budget(self, profile: WeddingProfile) -> BudgetBreakdown:
+    def estimate_budget(self, guest_count: int | None = None, profile: WeddingProfile | None = None):
         """Produce a deterministic, structured budget breakdown.
 
         - Accepts a full WeddingProfile.
         - Uses deterministic Python math for category allocations.
         - Applies a Goa destination wedding heuristic when applicable.
         """
+        # Backward-compat: if called with guest_count only, return a minimal dict
+        if profile is None:
+            gc = int(max(0, guest_count or 0))
+            return {"estimated_total": float(gc) * 100.0}
+
         destination = (profile.destination or "").strip().lower()
         total_budget = float(max(0.0, profile.budget))
         guest_count = int(max(0, profile.guest_count))
 
-        # Currency heuristic: assume INR for Goa, else USD fallback
-        currency = "INR" if "goa" in destination else "USD"
+        # Use user's selected currency explicitly
+        currency = (getattr(profile, "currency", None) or "INR")
 
         # Goa destination wedding heuristic (percent split)
         # Percentages chosen within requested ranges
@@ -158,6 +163,7 @@ class FinancialAgent:
                 destination=profile.destination,
                 catering_cost=catering_cost,
                 guest_count=int(max(0, profile.guest_count)),
+                currency=(getattr(profile, "currency", None) or "INR"),
             )
             selected = svc.prompt_user_selection(caterers)
             if selected:

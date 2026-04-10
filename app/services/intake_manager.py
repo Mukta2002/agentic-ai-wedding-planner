@@ -41,6 +41,44 @@ class IntakeManager:
             except Exception:
                 print("Please enter a numeric amount (e.g., 1000000).")
 
+    def _prompt_currency(self) -> str:
+        """Prompt and normalize a supported currency code with validation.
+
+        Normalizes common inputs:
+        - INR, Rs, Rupees -> INR
+        - USD, Dollars -> USD
+        - AED, Dirham -> AED
+        - GBP, Pounds -> GBP
+        - EUR, Euro -> EUR
+        """
+        mapping = {
+            "inr": "INR",
+            "rs": "INR",
+            "rupee": "INR",
+            "rupees": "INR",
+            "usd": "USD",
+            "dollar": "USD",
+            "dollars": "USD",
+            "aed": "AED",
+            "dirham": "AED",
+            "gbp": "GBP",
+            "pound": "GBP",
+            "pounds": "GBP",
+            "eur": "EUR",
+            "euro": "EUR",
+        }
+        while True:
+            raw = input(
+                "What currency is your wedding budget in? (e.g. INR / USD / AED / EUR / GBP): "
+            ).strip()
+            key = raw.lower().replace(".", "").replace(" ", "")
+            code = mapping.get(key)
+            if code is None and raw.upper() in ("INR", "USD", "AED", "EUR", "GBP"):
+                code = raw.upper()
+            if code:
+                return code
+            print("Please enter a valid currency (INR, USD, AED, EUR, GBP).")
+
     def _prompt_dates(self) -> List[str]:
         """Ask for comma-separated dates; light validation only (non-empty)."""
         while True:
@@ -57,6 +95,7 @@ class IntakeManager:
         place = self._prompt_nonempty("Place of wedding")
         dates = self._prompt_dates()
         budget = self._prompt_budget_float("Total budget of wedding")
+        currency = self._prompt_currency()
         guests = self._prompt_int("Total guests anticipated", min_value=0)
 
         # Construct using existing canonical fields for maximum compatibility.
@@ -67,6 +106,7 @@ class IntakeManager:
             guest_count=guests,
             budget=budget,
             wedding_dates=dates,
+            currency=currency,
         )
 
         # Populate added/alias fields to satisfy the intake requirement.
@@ -79,7 +119,7 @@ class IntakeManager:
         except Exception:
             pass
 
-        # Currency defaults to INR via schema; no prompt yet to keep flow minimal.
+        # Currency explicitly collected and set on profile.
         return profile
 
     # ---- Additive creative preference questions ----

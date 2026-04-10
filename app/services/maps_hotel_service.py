@@ -82,6 +82,7 @@ class MapsHotelService:
             "- Include pricing hints if any are commonly available (do not invent exact prices). Use approximate language.\n"
             "- Provide any nearby/local context that might help with destination planning.\n"
             "- Be conservative: this is discovery only; do not claim real-time availability or quotes.\n\n"
+            f"Currency: Use the user's selected currency {currency} for any price mentions or hints. Do not use any other currency.\n\n"
             "Return plain text in this exact block format for each hotel, separated by a blank line:\n"
             "Hotel: <name>\n"
             "Location: <city/state/country>\n"

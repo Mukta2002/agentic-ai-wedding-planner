@@ -11,7 +11,13 @@ def _ensure_dir(path: str) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
 
 
-def render_teaser_ending_card(profile: Any, out_path: str = os.path.join("assets", "video", "ending_card.png")) -> Dict[str, Any]:
+def render_teaser_ending_card(
+    profile: Any,
+    out_path: str = os.path.join("assets", "video", "ending_card.png"),
+    *,
+    hashtag: Optional[str] = None,
+    include_hashtag: Optional[bool] = None,
+) -> Dict[str, Any]:
     """Render a cinematic closing card image using structured profile data only.
 
     Text:
@@ -64,6 +70,25 @@ def render_teaser_ending_card(profile: Any, out_path: str = os.path.join("assets
     y = H // 2 - 40
     y = _center(couple, y, f1)
     _center(readable, y, f2)
+
+    # Optional hashtag as a subtle footer line
+    try:
+        if hashtag and (include_hashtag is True):
+            # draw near bottom center
+            tag = str(hashtag).strip()
+            if tag:
+                ftag = f2 or f1
+                w = int(draw.textlength(tag, font=ftag)) if ftag else 0
+                x = (W - w) // 2
+                y_foot = int(H * 0.90)
+                draw.text((x, y_foot + 1), tag, fill=(0, 0, 0), font=ftag)
+                draw.text((x, y_foot), tag, fill=(235, 235, 232), font=ftag)
+                try:
+                    print(f"[Teaser] Hashtag added to ending card: {tag}")
+                except Exception:
+                    pass
+    except Exception:
+        pass
 
     img.save(out_path)
     return {"path": out_path, "exists": os.path.exists(out_path), "size": os.path.getsize(out_path) if os.path.exists(out_path) else 0}
@@ -136,4 +161,3 @@ def append_ending_card_to_video(video_path: str, ending_image_path: str, out_pat
 
     exists = ok and os.path.exists(out_path)
     return {"ok": exists, "path": out_path, "logs": logs}
-

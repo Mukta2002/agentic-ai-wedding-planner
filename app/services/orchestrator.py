@@ -95,7 +95,7 @@ class Orchestrator:
 
             budget_breakdown = BudgetBreakdown(
                 total_budget=float(profile.budget),
-                currency="INR" if "goa" in (profile.destination or "").lower() else "USD",
+                currency=(getattr(profile, "currency", None) or ("INR" if "goa" in (profile.destination or "").lower() else "USD")),
                 guest_count=int(profile.guest_count),
                 venue_cost=float(profile.budget) * 0.22,
                 catering_cost=float(profile.guest_count) * (2800.0 if "goa" in (profile.destination or "").lower() else 100.0),

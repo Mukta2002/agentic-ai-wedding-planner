@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -30,17 +30,24 @@ def build_style_guide_pdf(
     *args,
     **kwargs,
 ) -> Dict[str, Any]:
-    """Build a visual multi-page style guide PDF.
+    """Build a ceremony-aware style guide PDF with large event pages.
 
-    Pages:
-    - Cover
-    - Overview
-    - Palette
-    - One page per ceremony (title/date/mood, swatches, men/women attire, collage)
-    - Closing note
+    Structure:
+    - Cover page
+    - Summary page
+    - One page per selected ceremony
+    - Closing notes page
     """
     out_path = state_or_out if isinstance(state_or_out, str) else out_path_or_events
+    force = bool(kwargs.get("force", False))
     _ensure_dir(out_path)
+    try:
+        print("[StyleGuide][DEBUG] Entered build_style_guide_pdf")
+        print("[StyleGuide] Building PDF")
+        print("[StyleGuide][DEBUG] Entered style guide generation orchestrator")
+        print("[StyleGuide][DEBUG] Entered PDF builder")
+    except Exception:
+        pass
     try:
         if os.path.exists(out_path):
             os.remove(out_path)
@@ -64,6 +71,15 @@ def build_style_guide_pdf(
             raw_cers = list(getattr(prof, "ceremonies", []) or []) if prof is not None else []
             ceremonies = [c for c in raw_cers if getattr(c, "include_in_style_guide", True)]
             try:
+                names = [getattr(c, 'name', '') for c in ceremonies]
+                print(f"[StyleGuide][DEBUG] Selected ceremonies count: {len(ceremonies)}")
+                print(f"[StyleGuide][DEBUG] Selected ceremonies names: {names}")
+            except Exception as e:
+                try:
+                    print(f"[StyleGuide][DEBUG] Error while logging selected ceremonies: {e}")
+                except Exception:
+                    pass
+            try:
                 bride = (getattr(prof, "bride_name", "") or "").strip()
                 groom = (getattr(prof, "groom_name", "") or "").strip()
                 couple = (f"{bride} & {groom}").strip(" &")
@@ -86,142 +102,326 @@ def build_style_guide_pdf(
                 design_spec = getattr(state, "design_spec", None)
             except Exception:
                 design_spec = None
+            # Hashtag settings (optional)
+            try:
+                use_tag = bool(getattr(state, "use_wedding_hashtag", False))
+                include_tag_style = bool(getattr(state, "include_hashtag_in_style_guide", False))
+                wedding_hashtag = str(getattr(state, "wedding_hashtag", "") or "").strip()
+            except Exception:
+                use_tag = False
+                include_tag_style = False
+                wedding_hashtag = ""
     except Exception:
         ceremonies = []
 
     pages: List[Image.Image] = []
     built_prompts: List[Dict[str, Any]] = []
-    dbg = {"ceremonies": [], "images": {}, "pages": 0}
     W, H = 1240, 1754
+
+    # Typography helpers (local to keep changes contained)
+    def _try_truetype(candidates: List[str], size: int) -> Any:
+        try:
+            # Common Windows font directory
+            win_dir = os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts")
+            search_paths = ["", win_dir]
+            for base in search_paths:
+                for name in candidates:
+                    fp = os.path.join(base, name) if base else name
+                    try:
+                        return ImageFont.truetype(fp, size=size)
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+        try:
+            # PIL often bundles DejaVu fonts
+            return ImageFont.truetype("DejaVuSans.ttf", size=size)
+        except Exception:
+            return ImageFont.load_default()
+
+    def _serif(size: int) -> Any:
+        return _try_truetype([
+            "Georgia.ttf", "georgia.ttf",
+            "Times New Roman.ttf", "times.ttf", "timesbd.ttf",
+            "Cambria.ttf", "Garamond.ttf", "Constantia.ttf", "Book Antiqua.ttf", "Palatino Linotype.ttf",
+            "DejaVuSerif.ttf", "LiberationSerif-Regular.ttf",
+        ], size)
+
+    def _sans(size: int, bold: bool = False) -> Any:
+        if bold:
+            return _try_truetype([
+                "Arial Bold.ttf", "arialbd.ttf", "Calibri Bold.ttf", "calibrib.ttf", "Segoe UI Bold.ttf",
+                "DejaVuSans-Bold.ttf", "LiberationSans-Bold.ttf",
+            ], size)
+        return _try_truetype([
+            "Arial.ttf", "arial.ttf", "Helvetica.ttf", "Calibri.ttf", "calibri.ttf", "Segoe UI.ttf",
+            "DejaVuSans.ttf", "LiberationSans-Regular.ttf",
+        ], size)
+
+    def _text_height(draw_ctx: ImageDraw.ImageDraw, text: str, font: Any) -> int:
+        try:
+            box = draw_ctx.textbbox((0, 0), text, font=font)
+            return (box[3] - box[1])
+        except Exception:
+            return 18
 
     # Cover
     try:
         cover = Image.new("RGB", (W, H), (244, 242, 238))
         draw = ImageDraw.Draw(cover)
-        font_title = ImageFont.load_default()
-        font_sub = ImageFont.load_default()
+        # Elegant frame
         draw.rectangle([(80, 120), (W - 80, H - 120)], outline=(200, 198, 194), width=3)
 
-        y = 360
+        # Fonts
+        f_title = _serif(88)
+        f_sub = _sans(40)
+        f_info = _sans(34)
+
+        # Content
+        y = 320
         title = couple or "Guest Style Guide"
         subtitle = place or ""
         sub2 = dates_txt or ""
         sub3 = f"Hotel: {hotel_txt}" if hotel_txt else ""
 
-        def _draw_center(text: str, y_pos: int, font) -> int:
+        def _draw_center(text: str, y_pos: int, font, color=(30, 30, 30), gap=18) -> int:
             if not text:
                 return y_pos
-            w_text, h_text = draw.textlength(text, font=font), 18
-            x_pos = (W - int(w_text)) // 2
-            draw.text((x_pos, y_pos), text, fill=(30, 30, 30), font=font)
-            return y_pos + int(h_text) + 16
+            w_text = draw.textlength(text, font=font)
+            x_pos = int((W - w_text) // 2)
+            draw.text((x_pos, y_pos), text, fill=color, font=font)
+            return y_pos + _text_height(draw, text, font) + gap
 
-        y = _draw_center(title, y, font_title)
-        y = _draw_center(subtitle, y + 10, font_sub)
-        y = _draw_center(sub2, y + 6, font_sub)
-        y = _draw_center(sub3, y + 6, font_sub)
+        y = _draw_center(title, y, f_title, color=(25, 25, 25), gap=32)
+        y = _draw_center(subtitle, y, f_sub, color=(40, 40, 40), gap=12)
+        y = _draw_center(sub2, y, f_info, color=(55, 55, 55), gap=10)
+        y = _draw_center(sub3, y, f_info, color=(55, 55, 55), gap=10)
+        # Optional hashtag placed elegantly near footer or below titles
+        try:
+            if 'use_tag' in locals() and 'include_tag_style' in locals():
+                if use_tag and include_tag_style:
+                    tag = wedding_hashtag if 'wedding_hashtag' in locals() else ""
+                    tag = (tag or "").strip()
+                    if tag:
+                        print(f"[StyleGuide] Hashtag added to cover: {tag}")
+                        # Footer placement (centered, high-contrast on light bg)
+                        w_text = int(draw.textlength(tag, font=f_info))
+                        x_foot = int((W - w_text) // 2)
+                        y_foot = int(H * 0.94)
+                        draw.text((x_foot, y_foot), tag, fill=(50, 50, 50), font=f_info)
+                        try:
+                            print(f"[StyleGuide] Cover hashtag rendered at: x={x_foot}, y={y_foot}, text={tag}")
+                        except Exception:
+                            pass
+        except Exception:
+            pass
         pages.append(cover)
     except Exception:
         pass
 
-    # Overview
+    # Summary
     if ceremonies:
         try:
             summary = Image.new("RGB", (W, H), (255, 255, 255))
             d = ImageDraw.Draw(summary)
-            f_title = ImageFont.load_default()
-            f_text = ImageFont.load_default()
-            y = 80
-            head = f"{couple} - {place}" if couple and place else "Guest Style Guide Overview"
-            d.text((80, y), head, fill=(0, 0, 0), font=f_title)
-            y += 30
+            f_head = _serif(56)
+            f_meta = _sans(34)
+            f_list = _sans(32)
+            f_label = _sans(30, bold=True)
+
+            y = 96
+            head = f"{couple} · {place}" if couple and place else (couple or place or "Guest Style Guide Overview")
+            d.text((100, y), head, fill=(25, 25, 25), font=f_head)
+            y += _text_height(d, head, f_head) + 16
+
             if dates_txt:
-                d.text((80, y), dates_txt, fill=(0, 0, 0), font=f_text)
-                y += 24
+                d.text((100, y), dates_txt, fill=(40, 40, 40), font=f_meta)
+                y += _text_height(d, dates_txt, f_meta) + 6
             if hotel_txt:
-                d.text((80, y), f"Hotel: {hotel_txt}", fill=(0, 0, 0), font=f_text)
-                y += 24
-            y += 8
+                t = f"Hotel: {hotel_txt}"
+                d.text((100, y), t, fill=(40, 40, 40), font=f_meta)
+                y += _text_height(d, t, f_meta) + 18
+
+            # Thin separator
+            d.line([(100, y), (W - 100, y)], fill=(220, 220, 220), width=2)
+            y += 16
+
             for idx, c in enumerate(ceremonies, start=1):
                 colors = ", ".join(getattr(c, "palette", []) or [])
-                line1 = f"{idx}. {getattr(c, 'name', '')} | {getattr(c, 'event_date', '')} | {getattr(c, 'time_of_day', '')}"
-                line2 = f"   Mood: {getattr(c, 'mood', '')} | Palette: {colors} | Dress: {getattr(c, 'dress_code', '')}"
-                d.text((80, y), line1, fill=(0, 0, 0), font=f_text)
-                y += 22
-                d.text((80, y), line2, fill=(0, 0, 0), font=f_text)
-                y += 28
-                note = getattr(c, "guest_note", None)
-                if note:
-                    d.text((100, y), f"Note: {note}", fill=(0, 0, 0), font=f_text)
-                    y += 24
-            pages.append(summary)
-            dbg["ceremonies"] = [getattr(c, "name", "") for c in ceremonies]
-        except Exception:
-            pass
+                name = f"{idx:02d}. {getattr(c, 'name', '')}"
+                meta = f"{(getattr(c, 'event_date', '') or '').strip()} · {(getattr(c, 'time_of_day', '') or '').strip()}"
+                d.text((100, y), name, fill=(30, 30, 30), font=f_label)
+                y += _text_height(d, name, f_label) + 2
+                d.text((100, y), meta, fill=(55, 55, 55), font=f_list)
+                y += _text_height(d, meta, f_list) + 4
 
-    # Palette
-    if design_spec is not None:
-        try:
-            palette_hex = list(getattr(design_spec, "palette_hex", []) or [])
-            palette_names = list(getattr(design_spec, "palette_names", []) or [])
-            if palette_hex or palette_names:
-                pal = Image.new("RGB", (W, H), (250, 250, 248))
-                d = ImageDraw.Draw(pal)
-                f_title = ImageFont.load_default()
-                f_text = ImageFont.load_default()
-                d.text((80, 80), "Color Palette", fill=(0, 0, 0), font=f_title)
-                x, y = 80, 140
-                sw = 160
-                for i in range(max(len(palette_hex), len(palette_names))):
-                    name = palette_names[i] if i < len(palette_names) else ""
-                    col = palette_hex[i] if i < len(palette_hex) else None
-                    box = (x, y, x + sw, y + 90)
-                    if col and isinstance(col, str) and col.strip().startswith('#') and len(col.strip()) >= 4:
-                        try:
-                            rgb = tuple(int(col.strip()[j:j+2], 16) for j in (1, 3, 5))
-                        except Exception:
-                            rgb = (230, 230, 230)
-                    else:
-                        rgb = (230, 230, 230)
-                    d.rectangle(box, fill=rgb, outline=(200, 200, 200))
-                    d.text((x, y + 98), f"{name} {col or ''}".strip(), fill=(20, 20, 20), font=f_text)
-                    x += sw + 40
-                    if x + sw + 80 > W:
-                        x = 80
-                        y += 150
-                pages.append(pal)
+                line2 = f"Mood: {(getattr(c, 'mood', '') or '').strip()}  ·  Palette: {colors}  ·  Dress: {(getattr(c, 'dress_code', '') or '').strip()}"
+                d.text((100, y), line2, fill=(60, 60, 60), font=f_list)
+                y += _text_height(d, line2, f_list) + 6
+
+                note = (getattr(c, "guest_note", "") or "").strip()
+                if note and note.lower() != 'no':
+                    note_t = f"Note: {note}"
+                    d.text((120, y), note_t, fill=(70, 70, 70), font=f_list)
+                    y += _text_height(d, note_t, f_list) + 10
+
+                # Light divider between ceremonies
+                d.line([(100, y), (W - 100, y)], fill=(235, 235, 235), width=1)
+                y += 16
+            # pages.append(summary)  # Removed to drop the summary page for a visual-first board
         except Exception:
             pass
 
     # Ceremony pages
+    def _find_existing_image_for_ceremony(
+        ceremony: Any,
+        idx: int,
+        slug: str,
+        preferred_path: str,
+    ) -> Tuple[Optional[str], List[str]]:
+        """Return the most reliable, already-saved image path for this ceremony.
+
+        Priority order:
+        1) Explicit path on ceremony object if present and exists
+        2) The preferred_path if it exists
+        3) A file in known output folders that matches slug or index pattern
+
+        Returns (selected_path, debug_candidates_checked)
+        """
+        checked: List[str] = []
+        # 0) Global mapping on state.media if present (outer kwargs)
+        try:
+            parent_state = kwargs.get("_state_ref")  # injected via outer scope
+        except Exception:
+            parent_state = None
+        if parent_state is not None:
+            try:
+                media = getattr(parent_state, "media", None)
+                if media is not None:
+                    img_map = getattr(media, "styleguide_image_map", None)
+                    if isinstance(img_map, dict):
+                        key = (getattr(ceremony, "name", None) or slug or str(idx)).strip()
+                        mapped = img_map.get(key)
+                        if isinstance(mapped, str) and mapped:
+                            checked.append(mapped)
+                            if os.path.exists(mapped) and os.path.getsize(mapped) > 0:
+                                return mapped, checked
+            except Exception:
+                pass
+        # 1) Ceremony-attached attributes (if any exist in user env)
+        for attr in (
+            "styleguide_image_path",
+            "wardrobe_image_path",
+            "moodboard_image_path",
+            "image_path",
+        ):
+            try:
+                p = getattr(ceremony, attr, None)
+            except Exception:
+                p = None
+            if isinstance(p, str) and p:
+                checked.append(p)
+                if os.path.exists(p) and os.path.getsize(p) > 0:
+                    return p, checked
+
+        # 2) Preferred (builder) path
+        if preferred_path:
+            checked.append(preferred_path)
+            if os.path.exists(preferred_path) and os.path.getsize(preferred_path) > 0:
+                return preferred_path, checked
+
+        # 3) Search known folders without reconstructing a new filename
+        search_dirs = [
+            os.path.join("assets", "style_guides", "generated"),
+            os.path.join("assets", "style_guides", "generated-images"),
+            os.path.join("assets", "style_guides", "generated_images"),
+        ]
+        candidates: List[str] = []
+        idx_strs = [f"{idx}", f"{idx:02d}"]
+        for ddir in search_dirs:
+            try:
+                if not os.path.isdir(ddir):
+                    continue
+                for name in os.listdir(ddir):
+                    lower = name.lower()
+                    if not (lower.endswith(".png") or lower.endswith(".jpg") or lower.endswith(".jpeg") or lower.endswith(".webp")):
+                        continue
+                    full = os.path.join(ddir, name)
+                    checked.append(full)
+                    # Heuristics: prefer files that mention the slug; otherwise ones containing the ceremony index token
+                    if slug and slug in lower:
+                        if os.path.exists(full) and os.path.getsize(full) > 0:
+                            candidates.append(full)
+                    else:
+                        if any(tok in lower for tok in idx_strs):
+                            if os.path.exists(full) and os.path.getsize(full) > 0:
+                                candidates.append(full)
+            except Exception:
+                continue
+
+        if candidates:
+            try:
+                # Choose most recent
+                chosen = sorted(candidates, key=lambda p: os.path.getmtime(p), reverse=True)[0]
+                return chosen, checked
+            except Exception:
+                return candidates[0], checked
+
+        return None, checked
+    try:
+        print("[StyleGuide][DEBUG] Entered ceremony image generation loop")
+    except Exception:
+        pass
     for idx, c in enumerate(ceremonies, start=1):
         event_name = getattr(c, 'name', f'Event {idx}')
+        try:
+            print(f"[StyleGuide][DEBUG] Processing ceremony: {event_name}")
+        except Exception:
+            pass
         slug = _slugify(event_name)
         gen_dir = os.path.join('assets', 'style_guides', 'generated')
         os.makedirs(gen_dir, exist_ok=True)
         mood_path = os.path.join(gen_dir, f"{idx:02d}_{slug}.png")
-        # Logs about expected image path and existence
+        # One-time ceremony-level debug context
         try:
-            print(f"[StyleGuide] Generating image for ceremony '{event_name}'")
+            cer_info = {
+                "name": getattr(c, 'name', None),
+                "event_date": getattr(c, 'event_date', None),
+                "time_of_day": getattr(c, 'time_of_day', None),
+                "mood": getattr(c, 'mood', None),
+                "palette": list(getattr(c, 'palette', []) or []),
+                "dress_code": getattr(c, 'dress_code', None),
+                "guest_note": getattr(c, 'guest_note', None),
+                "include_in_style_guide": getattr(c, 'include_in_style_guide', None),
+            }
+            print(f"[StyleGuide][DEBUG] Ceremony input: {cer_info}")
+            print(f"[StyleGuide][DEBUG] Starting image generation for: {event_name}")
+            print(f"[StyleGuide][DEBUG] Slug/index chosen: {slug} / {idx:02d}")
+            print(f"[StyleGuide][DEBUG] Planned output path: {os.path.abspath(mood_path)}")
         except Exception:
             pass
 
-        # Generate main mood image if needed, with explicit logging and regen
-        regeneration_attempted = False
-        save_attempted = False
-        # If router not provided, try to create one as a safe fallback
+        # Generate image only if missing or force=True
+        saved_path: Optional[str] = None
         if router is None:
             try:
-                from app.services.model_router import ModelRouter
-                router = ModelRouter()
-                print("[StyleGuide] Router was None; instantiated a local ModelRouter fallback.")
-            except Exception as _e:
-                try:
-                    print(f"[StyleGuide] Router unavailable; skipping generation. reason={_e}")
-                except Exception:
-                    pass
-
-        if router is not None and (not os.path.exists(mood_path) or os.path.getsize(mood_path) == 0):
+                print("[StyleGuide][DEBUG] Generation skipped: generation disabled")
+            except Exception:
+                pass
+            # list folder contents for context
+            try:
+                contents = sorted(os.listdir(gen_dir)) if os.path.isdir(gen_dir) else []
+                print(f"[StyleGuide][DEBUG] Generated folder contents: {contents}")
+            except Exception:
+                pass
+        elif (not force) and os.path.exists(mood_path) and os.path.getsize(mood_path) > 0:
+            try:
+                print("[StyleGuide][DEBUG] Generation skipped: existing file detected")
+                contents = sorted(os.listdir(gen_dir)) if os.path.isdir(gen_dir) else []
+                print(f"[StyleGuide][DEBUG] Generated folder contents: {contents}")
+            except Exception:
+                pass
+        elif router is not None and (force or not (os.path.exists(mood_path) and os.path.getsize(mood_path) > 0)):
             try:
                 from app.prompts.artifact_prompts import build_styleguide_image_prompt_struct
                 built = build_styleguide_image_prompt_struct(
@@ -232,224 +432,251 @@ def build_style_guide_pdf(
                 )
                 prompt = built.get("image_prompt", "")
                 try:
+                    preview = str(prompt)[:300].replace('\n', ' ')
+                except Exception:
+                    preview = "<unavailable>"
+                try:
+                    print(f"[StyleGuide][DEBUG] Built prompt for ceremony: {preview}")
+                except Exception:
+                    pass
+                try:
                     built_prompts.append(built)
                 except Exception:
                     pass
-                # Build prompt via guest-wardrobe builder and generate
-                regeneration_attempted = True
-                save_attempted = True
-                _saved, _meta = router.generate_invite_image(prompt, out_path=mood_path, state=state)
-                exists_after = os.path.exists(mood_path) and os.path.getsize(mood_path) > 0
-                # Silent; summary printed after pages saved
-            except Exception as e:
                 try:
-                    import traceback as _tb
-                    print(f"[StyleGuide] Exception during generation for '{event_name}': {e}")
-                    print(_tb.format_exc())
-                except Exception:
-                    pass
-            # If still missing, attempt one more time with a simplified guest-wardrobe prompt
-            if not (os.path.exists(mood_path) and os.path.getsize(mood_path) > 0):
-                try:
-                    pal_txt = ", ".join(getattr(c, 'palette', []) or [])
-                    simple_prompt = (
-                        f"Create one premium vertical guest wardrobe collage for '{event_name}'. "
-                        f"Mood/theme: {getattr(c, 'mood', '')}; palette: {pal_txt}; dress code: {getattr(c, 'dress_code', '')}. "
-                        f"Include mens and womens guestwear, accessories, footwear; no bride/groom portraits; no text overlays. Polished editorial layout."
-                    )
-                    save_attempted = True
-                    _saved2, _meta2 = router.generate_invite_image(simple_prompt, out_path=mood_path, state=state)
-                    exists_after2 = os.path.exists(mood_path) and os.path.getsize(mood_path) > 0
-                    # Silent; summary printed after pages saved
-                    if not exists_after2:
-                        try:
-                            print(f"[StyleGuide] No image returned for ceremony '{event_name}'")
-                        except Exception:
-                            pass
+                    print("[StyleGuide][DEBUG] Calling image generator now")
+                    saved_path, meta = router.generate_invite_image(prompt, out_path=mood_path, state=state)
                 except Exception as e:
                     try:
-                        import traceback as _tb
-                        print(f"[StyleGuide] Exception during fallback generation for '{event_name}': {e}")
-                        print(_tb.format_exc())
+                        print(f"[StyleGuide][DEBUG] Image generation error: {e}")
                     except Exception:
                         pass
-        else:
-            # No router or file already exists
-            try:
-                if router is None:
-                    print("[StyleGuide] Router unavailable; skipping generation.")
-                else:
-                    # File already exists; log quick confirmation
-                    print("[StyleGuide] Existing moodboard detected; generation skipped.")
-            except Exception:
-                pass
-        # No extra logs here to avoid duplicates
-
-        # Skip tile generation per single-image policy
-        try:
-            print("[StyleGuide] Tile generation skipped")
-        except Exception:
-            pass
-
-        # Compose page
-        page = Image.new("RGB", (W, H), (252, 252, 250))
-        d = ImageDraw.Draw(page)
-        f_title = ImageFont.load_default()
-        f_text = ImageFont.load_default()
-        # Title (safe write even if a prior line failed)
-        try:
-            d.text((80, 60), f"{event_name} — Style & Mood", fill=(0, 0, 0), font=f_title)
-        except Exception:
-            try:
-                d.text((80, 60), f"{event_name} | Style & Mood", fill=(0, 0, 0), font=f_title)
-            except Exception:
-                pass
-        d.text((80, 60), f"{event_name} — Style & Mood", fill=(0, 0, 0), font=f_title)
-
-        # Right details
-        x_info, y_info = W - 460, 120
-        # Guest-focused info block
-        pal_txt = ", ".join(getattr(c, "palette", []) or [])
-        dress_txt = getattr(c, "dress_code", "") or ""
-        mood_txt = getattr(c, "mood", "") or ""
-        def _join(vals):
-            return ", ".join([v for v in (vals or []) if v])
-        def _women_suggest():
-            if "cocktail" in dress_txt.lower():
-                return f"sleek cocktail dress or contemporary saree in {pal_txt or 'event colors'}"
-            if any(k in dress_txt.lower() for k in ["traditional", "ethnic", "indian"]):
-                return f"sarees or lehengas; tones from {pal_txt or 'palette'}"
-            if "beach" in (hotel_txt or "").lower():
-                return f"flowy maxi / resort-chic saree; breathable fabrics"
-            return f"elegant dress or saree aligned to {mood_txt or 'event mood'}"
-        def _men_suggest():
-            if "cocktail" in dress_txt.lower():
-                return f"tailored suit; tonal tie/pocket square; {pal_txt or 'palette'} accents"
-            if any(k in dress_txt.lower() for k in ["traditional", "ethnic", "indian"]):
-                return f"kurta-set, bandhgala or sherwani; subtle {pal_txt or 'palette'} pocket square"
-            if "beach" in (hotel_txt or "").lower():
-                return f"linen suit or band-collar shirt & trousers; loafers"
-            return f"tailored separates; smart shirt; {pal_txt or 'palette'} accents"
-        def _footwear_accessories():
-            parts = []
-            if any(k in (hotel_txt or "").lower() for k in ["lawn", "beach", "garden", "outdoor"]):
-                parts.append("women: wedges/block heels; men: loafers/juttis")
-            if "evening" in (getattr(c, "time_of_day", "") or "").lower():
-                parts.append("metallic accents, refined jewelry")
-            parts.append("textures: silk, georgette, jacquard per mood")
-            return "; ".join(parts)
-        fields = [
-            ("Date / Time", f"{getattr(c, 'event_date', '')} {getattr(c, 'time_of_day', '')}".strip()),
-            ("Mood / Theme", mood_txt),
-            ("Suggested Color Palette", pal_txt),
-            ("Suggested Attire for Women", _women_suggest()),
-            ("Suggested Attire for Men", _men_suggest()),
-            ("Footwear / Accessory", _footwear_accessories()),
-        ]
-        for k, v in fields:
-            if v:
-                d.text((x_info, y_info), f"{k}: {v}", fill=(15, 15, 15), font=f_text)
-                y_info += 26
-        note = getattr(c, "guest_note", None)
-        if note:
-            d.text((x_info, y_info), f"Styling note for guests: {note}", fill=(15, 15, 15), font=f_text)
-            y_info += 24
-
-        # Swatches
-        cpal = list(getattr(c, 'palette', []) or [])
-        if cpal:
-            sx, sy = x_info, y_info + 16
-            sw, sh = 96, 44
-            for i, col in enumerate(cpal):
-                rgb = (230, 230, 230)
-                if isinstance(col, str) and col.strip().startswith('#') and len(col.strip()) >= 4:
-                    try:
-                        cs = col.strip()
-                        rgb = tuple(int(cs[j:j+2], 16) for j in (1, 3, 5))
-                    except Exception:
-                        rgb = (230, 230, 230)
-                d.rectangle((sx, sy, sx + sw, sy + sh), fill=rgb, outline=(200, 200, 200))
-                d.text((sx, sy + sh + 6), str(col), fill=(10, 10, 10), font=f_text)
-                sx += sw + 16
-                if (i + 1) % 3 == 0:
-                    sx = x_info
-                    sy += sh + 30
-
-        # Collage area
-        bx0, by0, bx1, by1 = (80, 120, W - 500, H - 160)
-        d.rectangle((bx0, by0, bx1, by1), outline=(210, 210, 210), width=2)
-        used_images: List[str] = []
-        try:
-            print(f"[StyleGuide] Ceremony '{event_name}' collage box: ({bx0},{by0})-({bx1},{by1})")
-        except Exception:
-            pass
-        embed_succeeded = False
-        # Single-image placement logic
-        single_path = os.path.join(gen_dir, f"{idx:02d}_wedding.png")
-        try:
-            print(f"[StyleGuide] Using single ceremony image: {single_path}")
-            print(f"[StyleGuide] Single image exists: {os.path.exists(single_path) and os.path.getsize(single_path) > 0}")
-        except Exception:
-            pass
-        if os.path.exists(single_path) and os.path.getsize(single_path) > 0:
-            try:
-                im = Image.open(single_path)
-                im = im.convert('RGB')
-                frame_w, frame_h = (bx1 - bx0 - 8), (by1 - by0 - 8)
-                im.thumbnail((frame_w, frame_h))
-                x = bx0 + (frame_w - im.width) // 2 + 4
-                y = by0 + (frame_h - im.height) // 2 + 4
-                page.paste(im, (x, y))
-                used_images.append(single_path)
-                embed_succeeded = True
+                    saved_path, meta = None, {"error": str(e)}
+                ok = bool(saved_path) and os.path.exists(mood_path) and os.path.getsize(mood_path) > 0
                 try:
-                    print("[StyleGuide] Embedded single image successfully")
+                    print(f"[StyleGuide][DEBUG] Image generator returned: {'success' if ok else 'failure'}")
+                    print(f"[StyleGuide][DEBUG] Returned image object/path: {saved_path}")
+                except Exception:
+                    pass
+                try:
+                    exists_after = os.path.exists(mood_path)
+                    print(f"[StyleGuide][DEBUG] Saved file exists after generation: {'yes' if exists_after else 'no'}")
+                except Exception:
+                    pass
+                # folder listing after generation
+                try:
+                    contents = sorted(os.listdir(gen_dir)) if os.path.isdir(gen_dir) else []
+                    print(f"[StyleGuide][DEBUG] Generated folder contents: {contents}")
+                except Exception:
+                    pass
+                # Persist direct mapping on the ceremony/state for later resolution
+                try:
+                    if saved_path:
+                        setattr(c, "styleguide_image_path", saved_path)
+                        # Also mirror into media map early if available
+                        st = None if isinstance(state_or_out, str) else state_or_out
+                        if st is not None:
+                            media = getattr(st, "media", None)
+                            if media is None:
+                                setattr(st, "media", type("Media", (), {})())
+                                media = getattr(st, "media")
+                            mg = getattr(media, "styleguide_image_map", None)
+                            if not isinstance(mg, dict):
+                                mg = {}
+                                setattr(media, "styleguide_image_map", mg)
+                            mg[getattr(c, 'name', event_name)] = saved_path
                 except Exception:
                     pass
             except Exception:
+                pass
+
+        # Compose page(s). For the first ceremony page only (editorial spread),
+        # render a clean, image-first layout with just the main heading and
+        # a centered image occupying ~75-85% of page height.
+        editorial = True
+
+        page = Image.new("RGB", (W, H), (252, 252, 250))
+        d = ImageDraw.Draw(page)
+        f_title = _serif(58)
+        f_label = _sans(30, bold=True)
+        f_text = _sans(28)
+
+        # Title (kept for both; minimal on editorial)
+        title_x, title_y = 80, 60
+        d.text((title_x, title_y), f"{event_name}", fill=(25, 25, 25), font=f_title)
+
+        # Image area
+        if editorial:
+            # Premium editorial margins
+            left_margin = right_margin = 120
+            top_margin = 160
+            bottom_margin = 160
+
+            # Space below title before image
+            title_h = _text_height(d, f"{event_name}", f_title)
+            # Optional small subtitle under the ceremony title (e.g., "Day 1   Evening")
+            try:
+                _tod = (getattr(c, 'time_of_day', '') or '').strip()
+            except Exception:
+                _tod = ''
+            _subtitle = f"Day {idx}   {_tod}".strip() if _tod else (f"Day {idx}" if idx else '')
+            _subtitle_font = _sans(26)
+            if _subtitle:
+                d.text((title_x, title_y + title_h + 6), _subtitle, fill=(70, 70, 70), font=_subtitle_font)
+                title_block_h = title_h + 6 + _text_height(d, _subtitle, _subtitle_font)
+            else:
+                title_block_h = title_h
+            content_top = max(top_margin, title_y + title_block_h + 24)
+            content_bottom = H - bottom_margin
+            content_height = max(0, content_bottom - content_top)
+
+            # Target ~82% of page height for image, but do not exceed available
+            target_h = min(int(H * 0.82), content_height)
+            target_w = W - left_margin - right_margin
+
+            bx0, by0 = left_margin, content_top
+            bx1, by1 = W - right_margin, content_top + target_h
+            # No decorative rectangle/frame for editorial layout
+        else:
+            # Original bordered image frame + info blocks below
+            margin = 80
+            bx0, by0 = margin, 140
+            bx1, by1 = W - margin, H - 360
+            d.rectangle((bx0, by0, bx1, by1), outline=(210, 210, 210), width=2)
+
+        # Resolve final image path from actual saved files (don't reconstruct)
+        try:
+            print(f"[StyleGuide] Ceremony: {event_name}")
+        except Exception:
+            pass
+
+        # Allow resolver to see state for global mapping lookups
+        kwargs["_state_ref"] = None if isinstance(state_or_out, str) else state_or_out
+        resolved_path, _checked = _find_existing_image_for_ceremony(
+            ceremony=c,
+            idx=idx,
+            slug=slug,
+            preferred_path=(saved_path or mood_path),
+        )
+        # Logging: actual generation path and the final embed path
+        try:
+            if saved_path:
+                print(f"[StyleGuide] Actual generated image path: {saved_path}")
+        except Exception:
+            pass
+        try:
+            embed_path_log = resolved_path or (saved_path or mood_path)
+            print(f"[StyleGuide][DEBUG] Handing image path to PDF builder: {embed_path_log}")
+            print(f"[StyleGuide][DEBUG] PDF embed exists: {'yes' if (embed_path_log and os.path.exists(embed_path_log)) else 'no'}")
+            # Wrong path mapping hint: saved exists but resolved missing
+            try:
+                if saved_path and (resolved_path != saved_path) and (not (resolved_path and os.path.exists(resolved_path))):
+                    print("[StyleGuide][DEBUG] Generation skipped: wrong path mapping (resolved differs, file missing)")
+            except Exception:
+                pass
+        except Exception:
+            pass
+        try:
+            exists_flag = bool(resolved_path and os.path.exists(resolved_path) and os.path.getsize(resolved_path) > 0)
+            print(f"[StyleGuide] Image exists: {'yes' if exists_flag else 'no'}")
+        except Exception:
+            exists_flag = bool(resolved_path and os.path.exists(resolved_path) and os.path.getsize(resolved_path) > 0)
+            pass
+
+        embed_succeeded = False
+        if resolved_path and exists_flag:
+            try:
+                im = Image.open(resolved_path).convert('RGB')
+                frame_w, frame_h = (bx1 - bx0 - 16), (by1 - by0 - 16)
+                im.thumbnail((frame_w, frame_h))
+                x = bx0 + (frame_w - im.width) // 2 + 8
+                y = by0 + (frame_h - im.height) // 2 + 8
+                page.paste(im, (x, y))
+                embed_succeeded = True
+                try:
+                    print(f"[StyleGuide] Embedded image: {resolved_path}")
+                except Exception:
+                    pass
+            except Exception as e:
+                try:
+                    print(f"[StyleGuide][DEBUG] Embed error: {e}")
+                except Exception:
+                    pass
                 embed_succeeded = False
 
-        # Render fallback panel if needed (no embed success log to avoid noise)
         if not embed_succeeded:
+            # Graceful placeholder without captions (no extra text for editorial)
             try:
-                d.rectangle((bx0, by0, bx1, by1), fill=(255, 245, 235), outline=(210, 210, 210), width=2)
-                msg = "Moodboard image unavailable for this ceremony"
-                tw = d.textlength(msg, font=f_title)
-                tx = bx0 + max(16, int(((bx1 - bx0) - tw) // 2))
-                ty = by0 + (by1 - by0) // 2 - 10
-                d.text((tx, ty), msg, fill=(120, 60, 40), font=f_title)
+                fill_rect = (255, 245, 235)
+                if editorial:
+                    d.rectangle((bx0, by0, bx1, by1), fill=fill_rect)
+                else:
+                    d.rectangle((bx0, by0, bx1, by1), fill=fill_rect, outline=(210, 210, 210), width=2)
+                try:
+                    print("[StyleGuide] Fallback placeholder used")
+                except Exception:
+                    pass
             except Exception:
                 pass
 
-        dbg["images"][event_name] = used_images if used_images else ([])
-        # Comfort/climate note per page
-        rec_y = H - 120
-        climate = getattr(profile, 'destination_climate', '') if profile is not None else ''
-        closing_line = "Comfort note: consider breathable fabrics for day; layers for cool evenings."
-        if isinstance(climate, str) and climate:
-            closing_line = f"Comfort note: {climate}."
-        d.text((80, rec_y), closing_line, fill=(25, 25, 25), font=f_text)
+        # Only non-editorial pages include detailed text blocks
+        if not editorial:
+            # Info section below image
+            y_text = by1 + 32
+            pal_txt = ", ".join(getattr(c, "palette", []) or [])
+            fields = [
+                ("Day / Date", (getattr(c, 'event_date', '') or '').strip()),
+                ("Time", (getattr(c, 'time_of_day', '') or '').strip()),
+                ("Mood / Theme", (getattr(c, 'mood', '') or '').strip()),
+                ("Color Palette", pal_txt),
+                ("Dress Code", (getattr(c, 'dress_code', '') or '').strip()),
+            ]
+            guest_note = (getattr(c, 'guest_note', '') or '').strip()
+            if guest_note and guest_note.lower() != 'no':
+                fields.append(("Guest Note", guest_note))
+
+            x_text = 80  # original margin value
+            for label, val in fields:
+                if not val:
+                    continue
+                d.text((x_text, y_text), f"{label}", fill=(40, 40, 40), font=f_label)
+                y_text += _text_height(d, label, f_label) + 4
+                d.text((x_text, y_text), val, fill=(30, 30, 30), font=f_text)
+                y_text += _text_height(d, val, f_text) + 18
+
+            # Climate note
+            climate = getattr(profile, 'destination_climate', '') if profile is not None else ''
+            closing_line = (
+                f"Comfort note: {climate}." if isinstance(climate, str) and climate
+                else "Comfort note: breathable fabrics for day; light layers for cool evenings."
+            )
+            d.text((x_text, H - 96), closing_line, fill=(35, 35, 35), font=_sans(28))
+
         pages.append(page)
+        try:
+            print(f"[StyleGuide] Ceremony page added: {event_name}")
+        except Exception:
+            pass
 
     # Closing note
     try:
         closing = Image.new("RGB", (W, H), (246, 246, 244))
         dc = ImageDraw.Draw(closing)
-        f_title = ImageFont.load_default()
-        f_text = ImageFont.load_default()
+        f_t = _serif(46)
+        f_b = _sans(28)
         y = 140
-        dc.text((80, y), "A Note on Styling & Practicalities", fill=(0, 0, 0), font=f_title)
-        y += 36
+        dc.text((100, y), "A Note on Styling & Practicalities", fill=(25, 25, 25), font=f_t)
+        y += _text_height(dc, "A Note on Styling & Practicalities", f_t) + 20
         lines = [
-            "- Coordinate with the suggested palette for a cohesive guest look.",
-            "- Prefer breathable fabrics for day events; consider layers for late evenings.",
-            "- Comfortable footwear is encouraged for outdoor venues.",
-            "- Jewelry can be minimal or statement based on the event mood—avoid overpowering the ensemble.",
-            "- Avoid neon/clashing tones unless noted; aim for elegant, camera-friendly textures.",
+            "• Coordinate with the suggested palette for a cohesive guest look.",
+            "• Prefer breathable fabrics for day events; consider layers for late evenings.",
+            "• Comfortable footwear is encouraged for outdoor venues.",
+            "• Jewelry can be minimal or statement based on the event mood; avoid overpowering the ensemble.",
+            "• Avoid neon/clashing tones unless noted; aim for elegant, camera-friendly textures.",
         ]
         for ln in lines:
-            dc.text((90, y), ln, fill=(20, 20, 20), font=f_text)
-            y += 26
+            dc.text((110, y), ln, fill=(35, 35, 35), font=f_b)
+            y += _text_height(dc, ln, f_b) + 10
         pages.append(closing)
     except Exception:
         pass
@@ -461,6 +688,10 @@ def build_style_guide_pdf(
         first, rest = pages[0], pages[1:]
         first.save(out_path, save_all=True, append_images=rest)
     except Exception as e:
+        try:
+            print(f"[StyleGuide][DEBUG] PDF save error: {e}")
+        except Exception:
+            pass
         return {"path": out_path, "exists": False, "error": str(e), "page_count": len(pages)}
 
     info = _file_info(out_path)
@@ -477,8 +708,11 @@ def build_style_guide_pdf(
     except Exception:
         pass
     try:
-        dbg["pages"] = len(pages)
-        print(f"[StyleGuide] pages={dbg.get('pages')} out_path={out_path}")
+        print(f"[StyleGuide] Saved: {out_path}")
+    except Exception:
+        pass
+    try:
+        print("[StyleGuide][DEBUG] Exiting build_style_guide_pdf")
     except Exception:
         pass
     return info
